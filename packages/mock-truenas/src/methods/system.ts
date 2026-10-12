@@ -3,6 +3,7 @@ import { syncUpdateAlert } from '../alerts.ts';
 import type { Mock } from '../context.ts';
 import { validationError, validationErrors } from '../rpc.ts';
 import { $date, argObj, round, timedeltaStr, type Obj } from '../util.ts';
+import { unlockAfterBoot } from './encryption.ts';
 
 export const TIMEZONES = [
   'Africa/Cairo',
@@ -142,10 +143,14 @@ export function updateStatus(mock: Mock, progress: Obj | null = null): Obj {
   };
 }
 
-/** Simulated reboot: uptime and boot id reset; connections stay up. */
+/**
+ * Simulated reboot: uptime and boot id reset; connections stay up. Encrypted datasets come back the way the
+ * middleware unlocks them at boot: key-encrypted ones with their stored keys, passphrase ones stay locked.
+ */
 export function simulateReboot(mock: Mock): void {
   mock.bootTime = Date.now();
   mock.server.bootId = randomUUID();
+  unlockAfterBoot(mock);
 }
 
 function requireReason(params: unknown[], method: string): void {

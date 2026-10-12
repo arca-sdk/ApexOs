@@ -1049,3 +1049,125 @@ export interface RemoteAccessStatus {
   tailscale: TailscaleStatus;
   cloudflare: CloudflareStatus;
 }
+
+// --- Encryption ---
+// Folder encryption (ZFS native encryption, one encryption root per folder), lock/unlock, key modes,
+// turning encryption on for an existing folder, and the server recovery file. Passphrases travel only in
+// requests and are never stored by ApexOs.
+
+/**
+ * - `none`: not encrypted.
+ * - `key`: automatic key, kept by TrueNAS on the system drive; the folder unlocks by itself at start-up.
+ * - `passphrase`: the folder stays locked after every restart until someone types the passphrase.
+ */
+export type EncryptionMode = 'none' | 'key' | 'passphrase';
+
+export interface FolderEncryption {
+  mode: EncryptionMode;
+  /** Encrypted and locked: files can't be opened and the network share is hidden. */
+  locked: boolean;
+  /** Dataset whose key protects the folder; null when not encrypted. */
+  root: string | null;
+  /** The folder uses the key of a dataset above it, so lock, unlock and key changes happen there. */
+  inherited: boolean;
+  /** Automatic-key folder that the current recovery file doesn't cover (added or changed since the last download). */
+  notInRecoveryFile: boolean;
+  /** Apps that keep files in the folder (TrueNAS attachments); filled for locked folders, which they can't reach. */
+  appsAffected: string[];
+}
+
+/** Turning on encryption for an existing folder (Copy strategy); present while running or until cleaned up. */
+export interface EncryptionConversion {
+  /** `interrupted`: ApexOs restarted while it ran; Retry continues where it stopped. */
+  state: 'running' | 'failed' | 'interrupted' | 'done';
+  /** The step that is running or that failed. */
+  step: string | null;
+  error: string | null;
+  /** The encrypted copy has taken over the folder's name; Discard is no longer possible. */
+  switched: boolean;
+  taskId: string | null;
+  mode: Exclude<EncryptionMode, 'none'>;
+  /** A passphrase was chosen but couldn't be applied (ApexOs restarted); the folder uses an automatic key for now. */
+  passphrasePending: boolean;
+  /** The unencrypted original kept as a safety copy, and when ApexOs removes it on its own. */
+  safetyCopy: { dataset: string; usedBytes: number; removeAfter: string } | null;
+  startedAt: string;
+}
+
+// Interface merging: these fields extend the declarations in "Folders and users" above.
+export interface Folder {
+  /** Always present in server responses. */
+  encryption?: FolderEncryption;
+  conversion?: EncryptionConversion | null;
+}
+
+export interface FolderRequest {
+  /** How a new folder is encrypted; omitted means `{ mode: 'none' }`. Ignored when editing. */
+  encryption?: NewFolderEncryption;
+}
+
+export interface NewFolderEncryption {
+  mode: EncryptionMode;
+  /** Required for `passphrase` (at least 8 characters). Never stored. */
+  passphrase?: string;
+}
+
+/** POST /api/folders/:name/lock → TaskStarted (passphrase folders only) */
+/** POST /api/folders/:name/unlock  UnlockFolderRequest → TaskStarted (a wrong passphrase or key is a 400 with fields) */
+export interface UnlockFolderRequest {
+  /** For passphrase folders. */
+  passphrase?: string;
+  /** For automatic-key folders whose key TrueNAS lost: the 64-character hex key from the recovery file. */
+  key?: string;
+}
+
+/** PUT /api/folders/:name/encryption  ChangeKeyModeRequest → TaskStarted */
+export interface ChangeKeyModeRequest {
+  mode: Exclude<EncryptionMode, 'none'>;
+  /** New passphrase when switching to `passphrase` (at least 8 characters). */
+  passphrase?: string;
+  /** Current passphrase, needed when the folder is locked. */
+  currentPassphrase?: string;
+}
+
+export type ConversionDuration = 'minutes' | 'up-to-an-hour' | 'a-few-hours' | 'a-day-or-more';
+
+/** GET /api/folders/:name/encryption/convert — can encryption be turned on, and what it takes. */
+export interface ConversionCheck {
+  allowed: boolean;
+  /** Each reason it can't start, in plain words. Codes: SYSTEM_FOLDER, ALREADY_ENCRYPTED, APPS, IN_USE, CHILD_ENCRYPTED, CHILD_SHARED, REPLICATION, SPACE, BUSY, NAME_TAKEN, LOCKED_PARENT. */
+  blockers: { code: string; message: string }[];
+  /** Space the encrypted copy needs on the pool (the folder, its snapshots and sub-datasets, plus a margin). */
+  spaceNeededBytes: number;
+  freeBytes: number;
+  duration: ConversionDuration;
+  /** Datasets inside the folder that are copied along. */
+  childDatasets: string[];
+  /** Restore points (snapshots) copied along. */
+  snapshots: number;
+}
+
+/** POST /api/folders/:name/encryption/convert  StartConversionRequest → TaskStarted */
+export interface StartConversionRequest {
+  mode: Exclude<EncryptionMode, 'none'>;
+  passphrase?: string;
+  /** Keep the unencrypted original as a safety copy for a while (default true). */
+  keepOriginal?: boolean;
+}
+
+/** POST /api/folders/:name/encryption/convert/retry  { passphrase? } → TaskStarted */
+/** POST /api/folders/:name/encryption/convert/discard → TaskStarted (only before the switch-over) */
+/** DELETE /api/folders/:name/encryption/safety-copy → TaskStarted (removes the unencrypted original) */
+
+/** GET /api/encryption/recovery */
+export interface RecoveryKeyStatus {
+  /** Folders with an automatic key: these are what the recovery file unlocks. */
+  keyFolders: { name: string; pool: string; dataset: string; inFile: boolean; keyStored: boolean }[];
+  /** Folders with a passphrase (not in the file: only their owner knows the passphrase). */
+  passphraseFolders: string[];
+  lastDownloadedAt: string | null;
+  /** Automatic-key folders added or changed since the last download. */
+  addedSinceDownload: number;
+}
+
+/** POST /api/encryption/recovery/file → the recovery file (JSON, `{"<dataset>": "<hex key>"}`), as an attachment. */

@@ -4,8 +4,10 @@
  * capacity, dataset property inheritance, path resolution and default ACLs.
  */
 import type { Mock } from './context.ts';
+import { forgetKeys, renderCryptoFields } from './encryption.ts';
 import type {
   AclState,
+  DatasetEncryptionState,
   DatasetShareType,
   DatasetState,
   DiskState,
@@ -655,6 +657,8 @@ function userPropDefault(ds: DatasetState, key: string, def: string): Obj {
 export interface RenderDatasetOptions {
   children?: boolean;
   snapshots?: boolean;
+  /** `extra.properties` of the query (null/undefined: all properties). Narrow lists hide the crypto fields. */
+  properties?: unknown;
 }
 
 export function renderDataset(state: MockState, ds: DatasetState, opts: RenderDatasetOptions = {}): Obj {
@@ -667,16 +671,12 @@ export function renderDataset(state: MockState, ds: DatasetState, opts: RenderDa
     type: ds.type,
     name: ds.id,
     pool: ds.pool,
-    encrypted: false,
-    encryption_root: null,
-    key_loaded: false,
     children: opts.children === false ? [] : childDatasets(state, ds.id).map((c) => renderDataset(state, c, opts)),
     user_properties: Object.fromEntries(
       Object.entries(ds.user_properties)
         .filter(([k]) => !internalUserProps.has(k))
         .map(([k, v]) => [k, zprop(v, v, v, 'LOCAL')]),
     ),
-    locked: false,
     comments: ds.comments ? zprop(ds.comments, ds.comments, ds.comments, 'LOCAL') : zprop('', '', '', 'DEFAULT'),
     quota_warning: userPropDefault(ds, 'org.freenas:quota_warning', '80'),
     quota_critical: userPropDefault(ds, 'org.freenas:quota_critical', '95'),
@@ -705,9 +705,7 @@ export function renderDataset(state: MockState, ds: DatasetState, opts: RenderDa
     readonly: renderProp(state, ds, 'readonly'),
     recordsize: renderProp(state, ds, 'recordsize'),
     special_small_block_size: renderProp(state, ds, 'special_small_block_size'),
-    key_format: zprop('none', 'none', null, 'DEFAULT'),
-    encryption_algorithm: zprop('off', 'off', null, 'DEFAULT'),
-    pbkdf2iters: zprop('0', '0', '0', 'DEFAULT'),
+    ...renderCryptoFields(state, ds, opts.properties),
     used: bytesProp(used),
     usedbychildren: bytesProp(childUsed),
     usedbydataset: bytesProp(ds.usedBytes),
@@ -764,6 +762,8 @@ export interface DatasetSpec {
   usedBytes?: number;
   volsize?: number | null;
   createdAt?: number;
+  /** Makes the dataset an encryption root. */
+  encryption?: DatasetEncryptionState;
 }
 
 const SHARE_PRESETS: Record<DatasetShareType, Record<string, string>> = {
@@ -794,6 +794,7 @@ export function addDataset(mock: Mock, spec: DatasetSpec, emit = true): DatasetS
     createdAt: spec.createdAt ?? Date.now(),
     createtxg: mock.nextTxg(),
   };
+  if (spec.encryption) ds.encryption = spec.encryption;
   mock.state.datasets.push(ds);
   if (emit) mock.emit('pool.dataset.query', 'added', ds.id, renderDataset(mock.state, ds));
   return ds;
@@ -822,6 +823,8 @@ export function removeDatasetTree(mock: Mock, id: string): void {
     mock.emit('sharing.smb.query', 'removed', s.id);
     return false;
   });
+  // Destroying a dataset drops its stored encryption keys (zfs destroy event handler).
+  forgetKeys(state, id);
   for (const d of sortDatasets(doomed).reverse()) mock.emit('pool.dataset.query', 'removed', d.id);
 }
 

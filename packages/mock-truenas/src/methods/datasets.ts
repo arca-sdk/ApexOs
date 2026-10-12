@@ -15,6 +15,7 @@ import {
   sortDatasets,
 } from '../storage.ts';
 import { argObj, GiB, isObj, type Obj } from '../util.ts';
+import { afterCreateEncryption, createEncryption } from './encryption.ts';
 
 const COMPONENT_RE = /^[A-Za-z0-9_.: -]+$/;
 const SHARE_TYPES: DatasetShareType[] = ['GENERIC', 'SMB', 'APPS', 'MULTIPROTOCOL', 'NFS'];
@@ -95,7 +96,7 @@ export function registerDatasets(mock: Mock): void {
   const list = (options: unknown) => {
     const extra = (isObj(options) && isObj(options.extra) ? options.extra : {}) as Obj;
     const flat = extra.flat !== false;
-    const opts = { children: extra.retrieve_children !== false, snapshots: extra.snapshots === true };
+    const opts = { children: extra.retrieve_children !== false, snapshots: extra.snapshots === true, properties: extra.properties };
     const all = sortDatasets(mock.state.datasets);
     const roots = flat ? all : all.filter((d) => !parentId(d.id) || !getDataset(mock.state, parentId(d.id)!));
     return roots.map((d) => renderDataset(mock.state, d, opts));
@@ -147,6 +148,7 @@ export function registerDatasets(mock: Mock): void {
     }
     if (data.comments !== undefined && typeof data.comments !== 'string') errors.push([`${attr}.comments`, 'Input should be a valid string']);
     const props = collectProps(data, attr, errors, false);
+    const encryption = createEncryption(mock, data, id, attr, errors);
     if (errors.length) throw validationErrors(errors);
 
     // Missing ancestors
@@ -167,7 +169,9 @@ export function registerDatasets(mock: Mock): void {
       props: localProps,
       volsize: type === 'VOLUME' ? (data.volsize as number) : null,
       usedBytes: type === 'VOLUME' ? (data.sparse === true ? 64 * 1024 : (data.volsize as number)) : undefined,
+      encryption,
     });
+    afterCreateEncryption(mock, ds);
     return renderDataset(state, ds);
   });
 

@@ -1,5 +1,6 @@
 import { clearAlert, raiseAlert, syncAppAlerts, syncPoolAlerts } from '../alerts.ts';
 import type { Mock } from '../context.ts';
+import { forgetKeys, unlockWithStoredKeys } from '../encryption.ts';
 import { callError, queryFilter, validationError, validationErrors, type JobControl } from '../rpc.ts';
 import type { DiskState, ExportedPoolState, LeafState, PoolState, ScrubTaskState, VdevCategory, VdevState, VdevType } from '../state.ts';
 import {
@@ -25,6 +26,7 @@ import {
   sortDatasets,
 } from '../storage.ts';
 import { argObj, GiB, isObj, MiB, nameArg, randomGuid, type Obj } from '../util.ts';
+import { lockForExport } from './encryption.ts';
 
 const RESERVED_PREFIXES = ['mirror', 'raidz', 'draid', 'spare', 'log'];
 const DATA_TYPES: VdevType[] = ['STRIPE', 'MIRROR', 'RAIDZ1', 'RAIDZ2', 'RAIDZ3'];
@@ -402,6 +404,8 @@ export function exportPoolInternal(mock: Mock, pool: PoolState, opts: { destroy:
     });
   }
 
+  // TrueNAS forgets the pool's stored dataset keys on export (destroy or not).
+  forgetKeys(state, name);
   if (opts.destroy) {
     removeDatasetTree(mock, name);
     for (const ref of poolLeaves(pool)) {
@@ -422,6 +426,7 @@ export function exportPoolInternal(mock: Mock, pool: PoolState, opts: { destroy:
     };
     record.pool.scan = record.pool.scan?.state === 'SCANNING' ? { ...record.pool.scan, state: 'CANCELED', end_time: Date.now() } : record.pool.scan;
     record.pool.expand = null;
+    lockForExport(record.datasets);
     state.datasets = state.datasets.filter((d) => !ids.has(d.id));
     state.snapshots = state.snapshots.filter((s) => !ids.has(s.dataset));
     state.fs.nodes = state.fs.nodes.filter((n) => !under(n.path));
@@ -474,6 +479,8 @@ export function importPoolInternal(mock: Mock, rec: ExportedPoolState, newName?:
     state.apps.push(a);
   }
   defaultScrubTask(mock, pool);
+  // Encrypted datasets unlock with stored keys only (none survive an export: use the key file).
+  unlockWithStoredKeys(state, to);
   if (emit) {
     mock.emit('pool.query', 'added', pool.id, renderPool(state, pool));
     for (const d of sortDatasets(rec.datasets)) mock.emit('pool.dataset.query', 'added', d.id, renderDataset(state, d));

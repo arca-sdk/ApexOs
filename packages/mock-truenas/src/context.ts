@@ -35,8 +35,10 @@ export class Mock {
   /** Cron jobs (runtime only: ApexOs creates them temporarily). */
   readonly cronjobs = new Map<number, CronJobState>();
   nextCronId = 1;
-  /** Single-use `/_download/<job>` tokens. */
-  readonly downloads = new Map<string, { jobId: number; expires: number }>();
+  /** Single-use `/_download/<job>` tokens (see download.ts). */
+  readonly downloads = new Map<string, { jobId: number; expires: number; filename?: string }>();
+  /** What `core.download` jobs wrote to their output pipe, until it is downloaded. */
+  readonly downloadOutputs = new Map<number, { text: string }>();
   /** Mail the middleware would have sent (e.g. cron output to the run-as user's address). */
   readonly mailLog: { to: string; subject: string; text: string }[] = [];
   /** Interface changes in flight (in memory only, like the middleware's copy of its network tables). */

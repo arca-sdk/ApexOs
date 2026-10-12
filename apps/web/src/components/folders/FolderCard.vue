@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Folder as FolderIcon, FolderCog, Globe, History, Lock } from 'lucide-vue-next';
+import { Folder as FolderIcon, FolderCog, Globe, History, Lock, LockKeyhole, ShieldAlert, ShieldCheck } from 'lucide-vue-next';
 import type { Folder } from '@apexos/api-types';
 import { formatBytes } from '../../lib/format.ts';
 
@@ -40,6 +40,10 @@ const who = computed(() => {
       </template>
       <span v-else class="badge">Not shared</span>
       <span v-if="folder.timeMachine" class="badge accent"><History :size="12" /> Time Machine</span>
+      <span v-if="folder.conversion && folder.conversion.state === 'running'" class="badge info"><span class="spin badge-spin" aria-hidden="true" /> Encrypting</span>
+      <span v-else-if="folder.conversion && folder.conversion.state !== 'done'" class="badge err"><ShieldAlert :size="12" /> Encryption unfinished</span>
+      <span v-else-if="folder.encryption?.locked" class="badge warn"><LockKeyhole :size="12" /> Locked</span>
+      <span v-else-if="folder.encryption && folder.encryption.mode !== 'none'" class="badge ok"><ShieldCheck :size="12" /> Encrypted</span>
     </div>
 
     <div class="stack" style="--gap: 6px">
@@ -100,5 +104,10 @@ const who = computed(() => {
 }
 .who {
   margin-top: auto;
+}
+.badge-spin {
+  width: 10px;
+  height: 10px;
+  border-width: 1.5px;
 }
 </style>

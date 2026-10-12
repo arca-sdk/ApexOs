@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { Boxes, Globe, History, Lock, MapPin, Pencil, Trash2, User } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
+import { Boxes, Globe, History, Lock, LockKeyhole, MapPin, Pencil, ShieldCheck, Trash2, Unlock, User } from 'lucide-vue-next';
 import type { Folder } from '@apexos/api-types';
 import { formatBytes } from '../../lib/format.ts';
 import ConnectionAddress from './ConnectionAddress.vue';
+import EncryptionSection from './EncryptionSection.vue';
 import SidePanel from './SidePanel.vue';
+import { isConverting, ownsKey } from './encryptionRules.ts';
 import { LEVEL_LABELS, useLink } from './folderRules.ts';
 
 const props = defineProps<{ folder: Folder }>();
@@ -17,6 +19,16 @@ const meterClass = computed(() => (quotaPercent.value === null ? '' : quotaPerce
 
 /** Unshared system folders (e.g. app data) must not be edited: saving would share them. */
 const editable = computed(() => props.folder.shared || !props.folder.system);
+
+const locked = computed(() => !!props.folder.encryption?.locked);
+const converting = computed(() => isConverting(props.folder));
+/** Why Edit/Delete are unavailable right now (shown as the button's description). */
+const convertHint = computed(() =>
+  props.folder.conversion?.state === 'running' ? 'Wait until encryption is turned on.' : 'Retry or discard turning on encryption first.',
+);
+const editBlocked = computed(() => (converting.value ? convertHint.value : locked.value ? 'Unlock the folder to change its settings.' : null));
+const lockable = computed(() => ownsKey(props.folder) && props.folder.encryption?.mode === 'passphrase' && !converting.value);
+const encryption = ref<InstanceType<typeof EncryptionSection> | null>(null);
 </script>
 
 <template>
@@ -29,13 +41,18 @@ const editable = computed(() => props.folder.shared || !props.folder.system);
         </template>
         <span v-else class="badge">Not shared</span>
         <span v-if="folder.timeMachine" class="badge accent"><History :size="12" /> Time Machine</span>
+        <span v-if="locked" class="badge warn"><LockKeyhole :size="12" /> Locked</span>
+        <span v-else-if="folder.encryption && folder.encryption.mode !== 'none'" class="badge ok"><ShieldCheck :size="12" /> Encrypted</span>
         <span v-if="folder.system" class="badge">Managed by ApexOs</span>
       </div>
     </template>
 
     <section class="stack" style="--gap: 10px" aria-labelledby="fp-connect">
       <h3 id="fp-connect">Open it from another computer</h3>
-      <ConnectionAddress v-if="folder.shared" :folder="folder" />
+      <p v-if="locked" class="callout warn">
+        This folder is locked, so its network share is hidden and can’t be opened from any computer. Unlock it to use it again.
+      </p>
+      <ConnectionAddress v-else-if="folder.shared" :folder="folder" />
       <p v-else-if="folder.system" class="callout">ApexOs keeps app data here, so this folder isn’t shared on your network.</p>
       <p v-else class="callout warn">This folder isn’t shared on your network right now. Choose <strong>Edit</strong> and save to share it again.</p>
       <p v-if="folder.timeMachine" class="small muted">
@@ -43,6 +60,8 @@ const editable = computed(() => props.folder.shared || !props.folder.system);
         <strong>{{ folder.name }}</strong>.
       </p>
     </section>
+
+    <EncryptionSection ref="encryption" :folder="folder" />
 
     <section class="stack" style="--gap: 8px" aria-labelledby="fp-size">
       <h3 id="fp-size">Space</h3>
@@ -112,9 +131,14 @@ const editable = computed(() => props.folder.shared || !props.folder.system);
     </section>
 
     <template #footer>
-      <button v-if="editable" class="btn" @click="emit('edit')"><Pencil :size="16" /> Edit</button>
+      <button v-if="editable" class="btn" :disabled="!!editBlocked" :title="editBlocked ?? undefined" @click="emit('edit')"><Pencil :size="16" /> Edit</button>
+      <template v-if="lockable">
+        <button v-if="locked" class="btn" @click="encryption?.openUnlock()"><Unlock :size="16" /> Unlock</button>
+        <button v-else class="btn" @click="encryption?.openLock()"><Lock :size="16" /> Lock</button>
+      </template>
       <span class="spacer" />
-      <button class="btn danger" @click="emit('delete')"><Trash2 :size="16" /> Delete</button>
+      <button class="btn danger" :disabled="converting" :title="converting ? convertHint : undefined" @click="emit('delete')"><Trash2 :size="16" /> Delete</button>
+      <p v-if="editBlocked" class="small muted footer-note">{{ editBlocked }}</p>
     </template>
   </SidePanel>
 </template>
@@ -140,5 +164,8 @@ const editable = computed(() => props.folder.shared || !props.folder.system);
 .details dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+.footer-note {
+  flex-basis: 100%;
 }
 </style>

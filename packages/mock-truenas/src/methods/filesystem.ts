@@ -1,4 +1,5 @@
 import type { Mock } from '../context.ts';
+import { hiddenByLock, pathInLockedDataset } from '../encryption.ts';
 import { callError, queryFilter, validationError, validationErrors } from '../rpc.ts';
 import type { AclState, MockState } from '../state.ts';
 import {
@@ -37,9 +38,12 @@ function groupName(state: MockState, gid: number): string | null {
 function requirePath(state: MockState, raw: unknown, attr: string): string {
   if (typeof raw !== 'string' || !raw.startsWith('/')) throw validationError(attr, 'Path must be an absolute path');
   const p = normPath(raw);
-  if (!pathKind(state, p)) throw callError('ENOENT', `Path ${p} not found`);
+  // A locked dataset is an empty, immutable directory: nothing below its mountpoint exists.
+  if (!pathKind(state, p) || hiddenByLock(state, p)) throw callError('ENOENT', `Path ${p} not found`);
   return p;
 }
+
+const LOCKED_PATH = 'Path component is currently encrypted and locked';
 
 function childrenOf(state: MockState, path: string): string[] {
   const out = new Set<string>();
@@ -247,7 +251,8 @@ export function registerFilesystem(mock: Mock): void {
     const { state } = mock;
     const path = requirePath(state, p[0], 'filesystem.listdir.path');
     if (pathKind(state, path) !== 'DIRECTORY') throw callError('ENOTDIR', `${path}: not a directory`);
-    return queryFilter(childrenOf(state, path).map((c) => fsEntry(state, c)), p[1] ?? [], p[2] ?? {});
+    const entries = pathInLockedDataset(state, path) ? [] : childrenOf(state, path).map((c) => fsEntry(state, c));
+    return queryFilter(entries, p[1] ?? [], p[2] ?? {});
   });
 
   server.method('filesystem.mkdir', (p) => {
@@ -258,6 +263,7 @@ export function registerFilesystem(mock: Mock): void {
     if (!path.startsWith('/mnt/') || path.split('/').length < 4 || !datasetContaining(state, path)) {
       throw validationError('filesystem_mkdir.path', 'Directories may only be created inside a dataset under /mnt/<pool>.');
     }
+    if (pathInLockedDataset(state, dirname(path))) throw callError('EPERM', `[Errno 1] Operation not permitted: '${path}'`);
     if (pathKind(state, path)) throw callError('EEXIST', `${path}: path already exists`);
     if (pathKind(state, dirname(path)) !== 'DIRECTORY') throw callError('ENOENT', `${dirname(path)}: parent directory does not exist`);
     const opts = isObj(data.options) ? data.options : {};
@@ -306,6 +312,7 @@ export function registerFilesystem(mock: Mock): void {
     const data = argObj(p[0], 'filesystem_acl');
     const path = requirePath(state, data.path, 'filesystem_acl.path');
     if (!path.startsWith('/mnt/') || !datasetContaining(state, path)) throw validationError('filesystem_acl.path', 'ACLs may only be set on paths inside a pool dataset.');
+    if (pathInLockedDataset(state, path)) throw validationError('filesystem_acl.path', LOCKED_PATH);
     const def = defaultAcl(state, path);
     const opts = isObj(data.options) ? data.options : {};
     const errors: Array<[string, string]> = [];
@@ -347,6 +354,7 @@ export function registerFilesystem(mock: Mock): void {
     const data = argObj(p[0], attr);
     const path = requirePath(state, data.path, `${attr}.path`);
     if (!path.startsWith('/mnt/') || !datasetContaining(state, path)) throw validationError(`${attr}.path`, 'Permissions may only be changed inside a pool dataset.');
+    if (pathInLockedDataset(state, path)) throw validationError(`${attr}.path`, LOCKED_PATH);
     const opts = isObj(data.options) ? data.options : {};
     const errors: Array<[string, string]> = [];
     const owner = resolveOwner(state, data, attr, errors);

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
+import { afterFolderDeleted, assertFolderEditable, assertNotConverting } from '../services/encryption.ts';
 import { createFolder, deleteFolder, getFolder, listFolders, prepareFolder, updateFolder } from '../services/folders.ts';
 
 const access = z.object({
@@ -11,13 +12,14 @@ const access = z.object({
   timeMachine: z.boolean(),
 });
 const nameParam = z.object({ name: z.string().min(1) });
+const encryption = z.object({ mode: z.enum(['none', 'key', 'passphrase']), passphrase: z.string().max(512).optional() });
 
 export async function folderRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   app.get('/api/folders', async () => listFolders(ctx));
   app.get('/api/folders/:name', async (req) => getFolder(ctx, nameParam.parse(req.params).name));
 
   app.post('/api/folders', async (req) => {
-    const body = access.extend({ name: z.string().trim().min(1), pool: z.string().min(1) }).parse(req.body);
+    const body = access.extend({ name: z.string().trim().min(1), pool: z.string().min(1), encryption: encryption.optional() }).parse(req.body);
     if (ctx.tasks.findRunning('folder-create', body.name)) throw new UserError('This folder is already being created.', 409, 'BUSY');
     await prepareFolder(ctx, body);
     const task = ctx.tasks.start(
@@ -30,7 +32,7 @@ export async function folderRoutes(app: FastifyInstance, ctx: AppContext): Promi
   app.put('/api/folders/:name', async (req) => {
     const { name } = nameParam.parse(req.params);
     const body = access.parse(req.body);
-    await getFolder(ctx, name);
+    assertFolderEditable(ctx, await getFolder(ctx, name));
     if (body.access === 'public' && body.timeMachine) {
       throw new UserError('Time Machine folders must be private.', 400, 'VALIDATION', { timeMachine: 'Make the folder private first' });
     }
@@ -46,7 +48,11 @@ export async function folderRoutes(app: FastifyInstance, ctx: AppContext): Promi
     const folder = await getFolder(ctx, name);
     if (confirmName.trim() !== folder.name) throw new UserError('Type the folder name exactly to confirm.', 400, 'VALIDATION', { confirmName: 'Does not match' });
     if (folder.usedBy.length) throw new UserError(`This folder is in use by ${folder.usedBy.map((u) => u.name).join(', ')}.`, 409, 'IN_USE');
-    const task = ctx.tasks.start({ type: 'folder-delete', title: `Deleting folder ${name}`, ref: name }, () => deleteFolder(ctx, name, confirmName));
+    assertNotConverting(ctx, folder);
+    const task = ctx.tasks.start({ type: 'folder-delete', title: `Deleting folder ${name}`, ref: name }, async () => {
+      await deleteFolder(ctx, name, confirmName);
+      await afterFolderDeleted(ctx, folder.dataset);
+    });
     return { task };
   });
 }

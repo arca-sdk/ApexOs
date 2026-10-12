@@ -189,6 +189,26 @@ export interface DatasetState {
   user_properties: Record<string, string>;
   createdAt: number;
   createtxg: number;
+  /**
+   * ZFS native encryption, set only on encryption roots. Datasets below a root are encrypted with its key
+   * (encryption is inherited), so their own value stays undefined. See `encryption.ts`.
+   */
+  encryption?: DatasetEncryptionState;
+}
+
+/** Encryption settings of an encryption root (`zfs get encryption,keyformat,keylocation,keystatus`). */
+export interface DatasetEncryptionState {
+  keyFormat: 'HEX' | 'PASSPHRASE' | 'RAW';
+  /** e.g. AES-256-GCM */
+  algorithm: string;
+  /** PBKDF2 iterations (passphrases only; 0 for keys). */
+  pbkdf2iters: number;
+  /** The wrapping key (64 hex chars) or passphrase. Kept in plain text: this is a simulator. */
+  secret: string;
+  /** `keystatus=available`; false means the dataset and everything below it is locked. */
+  keyLoaded: boolean;
+  /** `prompt`, or `file:///…` (left behind by replication receives until `change_key` resets it). */
+  keylocation: string;
 }
 
 export interface SnapshotState {
@@ -461,6 +481,12 @@ export interface MockState {
   scrubTasks: ScrubTaskState[];
   /** System → Advanced → Sysctl entries (`tunable.*`); absent in older state files. */
   tunables?: TunableState[];
+  /**
+   * TrueNAS's stored dataset keys (`storage_encrypteddataset` on the boot pool): dataset name → hex key.
+   * Records are keyed by name and never follow renames. Passphrases are never stored. Optional so state
+   * files written before encryption was simulated still load.
+   */
+  encryptionKeys?: Record<string, string>;
 }
 
 export interface TunableState {
@@ -808,5 +834,6 @@ export function freshState(opts: SeedOptions): MockState {
     apps: [],
     alerts: [],
     scrubTasks: [],
+    encryptionKeys: {},
   };
 }

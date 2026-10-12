@@ -1,14 +1,16 @@
 <script setup lang="ts">
 /**
- * Create / edit folder wizard: General → Access → Options → Review.
- * In edit mode the name and pool are shown read-only (they can't change after creation).
+ * Create / edit folder wizard: General → Access → Options → Encryption → Review.
+ * In edit mode the name, pool and encryption are shown read-only (encryption changes live on the folder page).
  */
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
-import { Check, Globe, Lock, UserPlus } from 'lucide-vue-next';
-import type { AccessLevel, Folder, FolderAccess, FolderRequest, Pool, ShareUser, StorageOverview, TaskStarted } from '@apexos/api-types';
+import { Check, Globe, KeyRound, Lock, ShieldCheck, ShieldOff, UserPlus } from 'lucide-vue-next';
+import type { AccessLevel, EncryptionMode, Folder, FolderAccess, FolderRequest, Pool, ShareUser, StorageOverview, TaskStarted } from '@apexos/api-types';
 import Modal from '../Modal.vue';
 import HealthBadge from '../HealthBadge.vue';
 import PasswordInput from '../users/PasswordInput.vue';
+import PassphraseFields from './PassphraseFields.vue';
+import { MODE_LABELS, passphraseProblem } from './encryptionRules.ts';
 import { ApiError, api, runTask } from '../../lib/api.ts';
 import { formatBytes } from '../../lib/format.ts';
 import {
@@ -32,7 +34,7 @@ const props = defineProps<{
 const emit = defineEmits<{ close: []; done: [name: string] }>();
 
 const editing = computed(() => !!props.folder);
-const STEPS = ['General', 'Access', 'Options', 'Review'] as const;
+const STEPS = ['General', 'Access', 'Options', 'Encryption', 'Review'] as const;
 const step = ref(0);
 const furthest = ref(props.folder ? STEPS.length - 1 : 0);
 const stepHeading = ref<HTMLElement | null>(null);
@@ -78,6 +80,11 @@ const form = reactive({
   quotaValue: initialQuota?.value ?? 100,
   quotaUnit: initialQuota?.unit ?? ('GB' as 'GB' | 'TB'),
   timeMachine: props.folder?.timeMachine ?? false,
+  /** New folders default to an automatic key (recommended). */
+  encryption: (props.folder?.encryption?.mode ?? 'key') as EncryptionMode,
+  passphrase: '',
+  passphraseAgain: '',
+  passphraseAck: false,
 });
 
 const errors = reactive<Record<string, string>>({});
@@ -134,7 +141,22 @@ function validateStep(i: number): boolean {
     if (form.timeMachine && form.access !== 'private') errors.timeMachine = 'Only private folders can hold Time Machine backups.';
     return !errors.quotaBytes && !errors.timeMachine;
   }
+  if (i === 3 && !editing.value) {
+    clearErrors(['encryption', 'passphrase', 'passphraseAgain', 'passphraseAck']);
+    if (form.encryption === 'passphrase') {
+      const problem = passphraseProblem(form.passphrase, form.passphraseAgain);
+      if (problem.passphrase) errors.passphrase = problem.passphrase;
+      if (problem.again) errors.passphraseAgain = problem.again;
+      if (!form.passphraseAck) errors.passphraseAck = 'Tick this to confirm you’ll keep the passphrase safe.';
+    }
+    return !errors.passphrase && !errors.passphraseAgain && !errors.passphraseAck && !errors.encryption;
+  }
   return true;
+}
+
+const passphraseErrors = computed(() => ({ passphrase: errors.passphrase, again: errors.passphraseAgain }));
+function clearPassphraseErrors() {
+  clearErrors(['passphrase', 'passphraseAgain', 'encryption']);
 }
 
 async function goTo(i: number) {
@@ -189,7 +211,7 @@ async function addUser() {
 }
 
 // ---- submit -------------------------------------------------------------------
-const FIELD_STEP: Record<string, number> = { name: 0, pool: 0, access: 1, users: 1, quotaBytes: 2, timeMachine: 2 };
+const FIELD_STEP: Record<string, number> = { name: 0, pool: 0, access: 1, users: 1, quotaBytes: 2, timeMachine: 2, encryption: 3 };
 
 async function submit() {
   for (let s = 0; s < STEPS.length - 1; s++) {
@@ -209,7 +231,9 @@ async function submit() {
       emit('done', props.folder.name);
     } else {
       const name = form.name.trim();
-      await runTask(api.post<TaskStarted>('/folders', { name, pool: form.pool, ...body } satisfies FolderRequest));
+      const encryption = form.encryption === 'passphrase' ? { mode: form.encryption, passphrase: form.passphrase } : { mode: form.encryption };
+      await runTask(api.post<TaskStarted>('/folders', { name, pool: form.pool, ...body, encryption } satisfies FolderRequest));
+      form.passphrase = form.passphraseAgain = '';
       emit('done', name);
     }
   } catch (e) {
@@ -262,7 +286,7 @@ onMounted(load);
 
     <form v-else id="folder-wizard" class="stack" novalidate @submit.prevent="next">
       <h3 ref="stepHeading" tabindex="-1" class="step-heading">
-        {{ ['Name and place', 'Who can open it', 'Options', 'Check and confirm'][step] }}
+        {{ ['Name and place', 'Who can open it', 'Options', 'Protect it with encryption', 'Check and confirm'][step] }}
       </h3>
 
       <p v-if="submitError && step !== STEPS.length - 1" class="callout err" role="alert">{{ submitError }}</p>
@@ -449,6 +473,54 @@ onMounted(load);
         </div>
       </template>
 
+      <!-- Encryption -->
+      <template v-else-if="step === 3">
+        <template v-if="editing">
+          <p class="readonly">{{ MODE_LABELS[folder?.encryption?.mode ?? 'none'] }}</p>
+          <p class="small muted">Encryption is changed from the folder’s page, in its Encryption section.</p>
+        </template>
+        <template v-else>
+          <p class="small muted">Encryption scrambles the files on the drives, so nobody can read them from a drive that is pulled out, sold or thrown away.</p>
+          <fieldset class="field plain">
+            <legend class="sr-only">Encryption</legend>
+            <label class="choice" :class="{ selected: form.encryption === 'key' }">
+              <input v-model="form.encryption" type="radio" name="fw-enc" value="key" @change="clearPassphraseErrors" />
+              <ShieldCheck :size="18" class="choice-icon" />
+              <span class="stack" style="--gap: 2px">
+                <strong>Automatic key <span class="badge ok">Recommended</span></strong>
+                <span class="small muted">The server keeps the key and unlocks the folder by itself when it starts, so it works like any other folder. Keep a recovery file (Settings → Recovery key) in case the server’s system drive fails.</span>
+              </span>
+            </label>
+            <label class="choice" :class="{ selected: form.encryption === 'passphrase' }">
+              <input v-model="form.encryption" type="radio" name="fw-enc" value="passphrase" @change="clearPassphraseErrors" />
+              <KeyRound :size="18" class="choice-icon" />
+              <span class="stack" style="--gap: 2px">
+                <strong>Passphrase</strong>
+                <span class="small muted">After every restart the folder stays locked until you type the passphrase, so even someone who takes the whole server can’t open it. ApexOs never stores the passphrase.</span>
+              </span>
+            </label>
+            <label class="choice" :class="{ selected: form.encryption === 'none' }">
+              <input v-model="form.encryption" type="radio" name="fw-enc" value="none" @change="clearPassphraseErrors" />
+              <ShieldOff :size="18" class="choice-icon" />
+              <span class="stack" style="--gap: 2px">
+                <strong>Don’t encrypt</strong>
+                <span class="small muted">Files are stored as they are. You can turn encryption on later; that makes a full copy of the folder, so it takes longer once it holds a lot.</span>
+              </span>
+            </label>
+          </fieldset>
+
+          <div v-if="form.encryption === 'passphrase'" class="card flat stack passphrase" style="--gap: 12px">
+            <PassphraseFields id-prefix="fw-enc" v-model:passphrase="form.passphrase" v-model:again="form.passphraseAgain" :errors="passphraseErrors" @input="clearPassphraseErrors" />
+            <label class="row check">
+              <input v-model="form.passphraseAck" type="checkbox" :aria-invalid="!!errors.passphraseAck || undefined" @change="delete errors.passphraseAck" />
+              <span class="small">I’ll keep this passphrase somewhere safe. If it’s lost, nobody can open these files again, not even with a recovery file.</span>
+            </label>
+            <span v-if="errors.passphraseAck" class="error-text small">{{ errors.passphraseAck }}</span>
+          </div>
+          <p v-if="errors.encryption" class="error-text small">{{ errors.encryption }}</p>
+        </template>
+      </template>
+
       <!-- Review -->
       <template v-else>
         <div class="review">
@@ -471,6 +543,12 @@ onMounted(load);
             <div class="row"><h4>Options</h4><span class="spacer" /><button type="button" class="btn ghost small" @click="goTo(2)">Change</button></div>
             <p class="small">Storage limit: {{ quotaBytes ? formatBytes(quotaBytes) : 'None' }}</p>
             <p class="small">Time Machine: {{ form.access === 'private' && form.timeMachine ? 'On' : 'Off' }}</p>
+          </section>
+          <section class="card flat stack" style="--gap: 6px">
+            <div class="row"><h4>Encryption</h4><span class="spacer" /><button v-if="!editing" type="button" class="btn ghost small" @click="goTo(3)">Change</button></div>
+            <p class="small">{{ MODE_LABELS[form.encryption] }}</p>
+            <p v-if="!editing && form.encryption === 'passphrase'" class="small muted">The folder stays locked after every restart until someone types the passphrase.</p>
+            <p v-else-if="!editing && form.encryption === 'key'" class="small muted">Unlocks by itself when the server starts. Download a new recovery file afterwards.</p>
           </section>
         </div>
         <p class="small muted">
@@ -624,6 +702,14 @@ onMounted(load);
   padding: 16px;
   background: var(--surface-2);
 }
+.passphrase {
+  padding: 16px;
+  background: var(--surface-2);
+}
+.choice strong .badge {
+  margin-left: 6px;
+  vertical-align: 1px;
+}
 .check {
   align-items: flex-start;
   --gap: 10px;
@@ -682,5 +768,8 @@ onMounted(load);
   .level {
     min-width: 0;
   }
+}
+.error-text {
+  color: var(--err);
 }
 </style>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { FolderPlus, Users } from 'lucide-vue-next';
+import { FolderPlus, KeyRound, Users } from 'lucide-vue-next';
 import type { Folder, FoldersResponse, ShareUser } from '@apexos/api-types';
 import PageState from '../components/PageState.vue';
 import DeleteFolderDialog from '../components/folders/DeleteFolderDialog.vue';
@@ -41,6 +41,8 @@ onMounted(load);
 onServerChange(['folders', 'users', 'locations', 'apps'], load);
 
 const personal = computed(() => data.value?.folders.filter((f) => !f.system) ?? []);
+/** Automatic-key folders whose key isn't in the last downloaded recovery file. */
+const missingFromRecovery = computed(() => data.value?.folders.filter((f) => f.encryption?.notInRecoveryFile) ?? []);
 const system = computed(() => data.value?.folders.filter((f) => f.system) ?? []);
 
 // ---- selection via the URL (/folders?folder=Name) so every folder has a direct link ----
@@ -111,6 +113,19 @@ async function deleted() {
         <button class="btn ghost small" @click="closePanel">Dismiss</button>
       </p>
 
+      <p v-if="missingFromRecovery.length" class="callout warn row wrap recovery" role="status">
+        <KeyRound :size="18" />
+        <span class="recovery-text">
+          <template v-if="missingFromRecovery.length === 1">
+            The key of {{ missingFromRecovery[0]!.name }} isn’t in a recovery file yet. Without one, the folder can’t be opened if the server’s system drive fails.
+          </template>
+          <template v-else>
+            The keys of {{ missingFromRecovery.length }} encrypted folders aren’t in a recovery file yet. Without one, they can’t be opened if the server’s system drive fails.
+          </template>
+        </span>
+        <RouterLink :to="{ path: '/settings', query: { section: 'recovery' } }" class="btn small">Download recovery file</RouterLink>
+      </p>
+
       <section class="stack" aria-labelledby="personal-h">
         <h2 id="personal-h">Your folders</h2>
         <div v-if="personal.length" class="grid" style="--min: 240px">
@@ -173,5 +188,12 @@ async function deleted() {
 }
 .people-title {
   font-size: 1rem;
+}
+.recovery {
+  --gap: 10px;
+}
+.recovery-text {
+  flex: 1;
+  min-width: 200px;
 }
 </style>

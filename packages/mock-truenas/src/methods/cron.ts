@@ -89,16 +89,5 @@ export function registerCron(mock: Mock): void {
     return `/_download/${id}?auth_token=${token}`;
   });
 
-  server.httpRoute('/_download/', (_req, res, url) => {
-    const id = Number(url.pathname.split('/')[2]);
-    const token = url.searchParams.get('auth_token') ?? '';
-    const grant = mock.downloads.get(token);
-    if (!grant) return void res.writeHead(401, { 'content-type': 'text/plain' }).end('Invalid token');
-    mock.downloads.delete(token);
-    if (grant.jobId !== id) return void res.writeHead(401, { 'content-type': 'text/plain' }).end('Invalid token');
-    if (grant.expires < Date.now()) return void res.writeHead(410, { 'content-type': 'text/plain' }).end('Download window expired');
-    const text = server.jobLogs.get(id);
-    if (text === undefined) return void res.writeHead(404, { 'content-type': 'text/plain' }).end('Not found');
-    res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-disposition': `attachment; filename="${id}.log"` }).end(text);
-  });
+  // GET /_download/<job> (job logs and core.download outputs) is served by download.ts.
 }

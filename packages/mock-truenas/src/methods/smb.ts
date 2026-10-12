@@ -1,6 +1,7 @@
 import type { Mock } from '../context.ts';
 import { callError, queryFilter, validationError, validationErrors } from '../rpc.ts';
-import type { SmbShareAce, SmbShareState } from '../state.ts';
+import { pathInLockedDataset } from '../encryption.ts';
+import type { MockState, SmbShareAce, SmbShareState } from '../state.ts';
 import { normPath, pathKind } from '../storage.ts';
 import { argObj, isObj, uuid, type Obj } from '../util.ts';
 import { groupSid, userSid } from './accounts.ts';
@@ -49,7 +50,8 @@ const RESERVED_NAMES = ['global', 'printers', 'homes'];
 const NETBIOS_RE = /^(?![0-9]*$)[a-zA-Z0-9.\-_!@#$%^&()'{}~]{1,15}$/;
 export const EVERYONE_ACE: SmbShareAce = { ae_perm: 'FULL', ae_type: 'ALLOWED', ae_who_sid: 'S-1-1-0', ae_who_id: null };
 
-export function renderShare(s: SmbShareState): Obj {
+/** `locked` is computed like `pool.dataset.path_in_locked_datasets` when the state is given. */
+export function renderShare(s: SmbShareState, state?: MockState): Obj {
   return {
     id: s.id,
     purpose: s.purpose,
@@ -60,7 +62,7 @@ export function renderShare(s: SmbShareState): Obj {
     readonly: s.readonly,
     browsable: s.browsable,
     access_based_share_enumeration: s.access_based_share_enumeration,
-    locked: false,
+    locked: state ? pathInLockedDataset(state, s.path) : false,
     audit: s.audit,
     options: s.options,
   };
@@ -199,7 +201,7 @@ export function createShare(mock: Mock, data: Obj, emit = true): SmbShareState {
     share_acl: [EVERYONE_ACE],
   };
   mock.state.shares.push(share);
-  if (emit) mock.emit('sharing.smb.query', 'added', share.id, renderShare(share));
+  if (emit) mock.emit('sharing.smb.query', 'added', share.id, renderShare(share, mock.state));
   return share;
 }
 
@@ -234,7 +236,7 @@ function smbConfigValidate(mock: Mock, data: Obj): void {
 
 export function registerSmb(mock: Mock): void {
   const { server } = mock;
-  const shares = () => mock.state.shares.map(renderShare);
+  const shares = () => mock.state.shares.map((s) => renderShare(s, mock.state));
   const shareArg = (id: unknown) => {
     const s = mock.state.shares.find((x) => x.id === id);
     if (!s) throw callError('ENOENT', `SMB share ${String(id)} does not exist`);
@@ -243,7 +245,7 @@ export function registerSmb(mock: Mock): void {
 
   server.method('sharing.smb.query', (p) => queryFilter(shares(), p[0], p[1]));
   server.method('sharing.smb.get_instance', (p) => queryFilter(shares(), [['id', '=', p[0]]], { get: true }));
-  server.method('sharing.smb.create', (p) => renderShare(createShare(mock, argObj(p[0], 'sharingsmb_create'))));
+  server.method('sharing.smb.create', (p) => renderShare(createShare(mock, argObj(p[0], 'sharingsmb_create')), mock.state));
   server.method('sharing.smb.update', (p) => {
     const share = shareArg(p[0]);
     const data = argObj(p[1], 'sharingsmb_update');
@@ -257,7 +259,7 @@ export function registerSmb(mock: Mock): void {
     }
     if (typeof data.comment === 'string') share.comment = data.comment;
     if (isObj(data.audit)) share.audit = { ...share.audit, ...(data.audit as Partial<SmbShareState['audit']>) };
-    const entry = renderShare(share);
+    const entry = renderShare(share, mock.state);
     mock.emit('sharing.smb.query', 'changed', share.id, entry);
     return entry;
   });

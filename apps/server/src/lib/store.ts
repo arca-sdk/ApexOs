@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { DriveDiagnosis, DriveErrorCounts, DriveHealthEvent, LocationPreferenceId, NoticeLevel, SmartSummary } from '@apexos/api-types';
 import type { StoredPreferences } from '@apexos/shared/eshtek/preferences';
+import type { StoredEncryption } from '../services/encryption.ts';
 
 /** What ApexOs remembers about an app it installed (TrueNAS remains the source of truth for the app itself). */
 export interface InstalledAppRecord {
@@ -131,6 +132,8 @@ export interface ApexOsState {
   driveHealth: DriveHealthStore;
   security: SecurityState;
   remoteAccess: RemoteAccessState;
+  /** Recovery-file tracking and "turn on encryption" runs (never passphrases). */
+  encryption?: StoredEncryption;
 }
 
 function defaultState(): ApexOsState {

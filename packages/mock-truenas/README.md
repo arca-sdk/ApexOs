@@ -86,6 +86,8 @@ call `mock.save()` after direct mutations.
 - Apps: `docker.*`, `catalog.*`, `app.*` (catalog and custom compose apps, port and host-path
   validation, `ix_volume` datasets, upgrade and rollback) and `app.image.*`.
 - `tunable.*` (sysctl tunables; create/update/delete are jobs, unknown sysctls and duplicates are refused).
+- Encryption (see below), `pool.dataset.rename`, `core.download` with `GET /_download/<job>`, and
+  `replication.run_onetime` over LOCAL transport.
 - `alert.*`; the event sources `reporting.realtime` and `app.stats` (both accept `:{"interval": n}`);
   `core.get_methods`; and CRUD events for pools, datasets, snapshots, shares, users, groups, apps,
   services and alerts.
@@ -93,9 +95,41 @@ call `mock.save()` after direct mutations.
 Run `core.get_methods` for the full list. Things that are approximated:
 - Capacity: RAIDZ capacity is `(n − parity) × smallest disk − 3%`. MIRROR uses the smallest disk and
   STRIPE the sum. Allocation is the sum of the datasets' simulated usage.
-- Encryption, VMs, replication and SMART are not modelled.
+- VMs, replication over SSH, periodic snapshot/replication tasks and SMART are not modelled.
 - Operations still running when the state is saved are settled on load: resilvers finish, scrubs are
   cancelled, and deploying apps come up.
+
+## Encryption
+
+ZFS native encryption follows middleware 25.10 (`plugins/pool_/dataset_encryption_*.py`):
+
+- Only encryption roots carry encryption settings (`DatasetState.encryption`: key format, algorithm, the key
+  or passphrase in plain text, `keyLoaded`, `keylocation`); everything below a root inherits it. `encrypted`,
+  `encryption_root`, `key_loaded` and `locked` are only included in `pool.dataset.query` when `extra.properties`
+  is omitted or names a crypto property (`encryption`, `encryptionroot`, `keyformat`, `keylocation`,
+  `keystatus`); `key_format` needs `keyformat` (or no list).
+- `pool.dataset.create` validates `encryption` / `inherit_encryption` / `encryption_options` like the
+  middleware (passphrase roots can't have key-encrypted children, no unencrypted dataset inside an
+  encrypted one, parent must be unlocked).
+- TrueNAS's key store is `state.encryptionKeys` (dataset name → hex key). HEX keys are stored on create,
+  `change_key`, unlock with a key, and LOCAL replication receives with `encryption_key_location: "$TrueNAS"`;
+  passphrases never are. Records are keyed by name: `pool.dataset.rename` leaves them behind, destroying a
+  dataset or exporting its pool drops them, and `export_keys` first prunes records that no longer open a root
+  of that name (`sync_db_keys`).
+- `pool.dataset.lock` (passphrase roots only; stops apps with host paths inside), `unlock` (wrong secrets
+  come back in `failed` as `Invalid Key`; apps aren't restarted), `encryption_summary`, `change_key`,
+  `export_key`, and `export_keys` (output pipe only: call it through `core.download`). Uploaded key files
+  (`key_file: true`) are not simulated.
+- Locked datasets: shares report `locked: true`, `filesystem.listdir` of the mountpoint is empty, paths
+  below it don't exist, `mkdir` fails with EPERM and ACL/permission changes are refused.
+- `system.reboot` (and `update.run` with reboot) lock every root and unlock key-encrypted ones whose key is
+  stored under their current name; passphrase roots stay locked. Pool import does the same (after an export
+  no keys are left, so encrypted datasets come back locked).
+- `replication.run_onetime` (LOCAL, PUSH) copies a dataset tree with its snapshots, files, owners, ACLs and
+  properties; with `encryption` the target becomes a new encryption root (`-x encryption` for children) and
+  takes ~1% more space. `only_from_scratch`, `allow_from_scratch`, `readonly` (default SET), retention
+  SOURCE/NONE, `properties_override` / `_exclude`, `name_regex` and naming schemas are honoured. The LOCAL
+  code lives in `methods/replication-local.ts` behind a transport check so other transports can be added.
 
 ## Catalog data
 

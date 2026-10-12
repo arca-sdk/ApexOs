@@ -5,6 +5,7 @@ import { UserError } from '../lib/errors.ts';
 import { foldernameFormat } from '../lib/validators.ts';
 import { GiB, propNumber, userProp } from '../truenas/helpers.ts';
 import type { TnDataset, TnPool, TnShareAce, TnSmbShare } from '../truenas/types.ts';
+import { afterFolderCreated, CRYPTO_QUERY_PROPERTIES, datasetCreateEncryption, decorateFolders, isEncryptionArtifact, validateNewFolderEncryption } from './encryption.ts';
 import { LOCATION_DEFS } from './locations.ts';
 import { lanIp } from './system.ts';
 import { readUsers, type UserDirectory } from './users.ts';
@@ -39,7 +40,7 @@ async function readFolderSources(client: TrueNasClient): Promise<FolderSources> 
   const [datasets, shares, dir, pools, ip] = await Promise.all([
     client.call<TnDataset[]>('pool.dataset.query', [
       [['type', '=', 'FILESYSTEM']],
-      { extra: { retrieve_children: false, properties: ['used', 'available', 'quota', 'mountpoint', 'encryption'], retrieve_user_props: true } },
+      { extra: { retrieve_children: false, properties: ['used', 'available', 'quota', 'mountpoint', ...CRYPTO_QUERY_PROPERTIES], retrieve_user_props: true } },
     ]),
     client.call<TnSmbShare[]>('sharing.smb.query'),
     readUsers(client),
@@ -122,7 +123,8 @@ function toFolder(ctx: AppContext, ds: TnDataset, src: FolderSources): Folder {
 
 export async function listFolders(ctx: AppContext): Promise<FoldersResponse> {
   const src = await readFolderSources(ctx.truenas.client());
-  const folders = src.datasets.filter(isFolderDataset).map((ds) => toFolder(ctx, ds, src));
+  const folders = src.datasets.filter((ds) => isFolderDataset(ds) && !isEncryptionArtifact(ctx, ds)).map((ds) => toFolder(ctx, ds, src));
+  await decorateFolders(ctx, folders, src.datasets);
   folders.sort((a, b) => Number(a.system) - Number(b.system) || a.name.localeCompare(b.name));
   return { folders, reservedNames: RESERVED_FOLDER_NAMES };
 }
@@ -252,6 +254,7 @@ export async function prepareFolder(ctx: AppContext, req: FolderRequest, opts: C
       throw new UserError(`Unknown user ${u.username}`, 400, 'VALIDATION', { users: `Unknown user ${u.username}` });
     }
   }
+  if (!existing) await validateNewFolderEncryption(ctx, pool.name, req.encryption);
   return { name, datasetId, path, quota, existing, shareTaken, src };
 }
 
@@ -274,9 +277,11 @@ export async function createFolder(
           share_type: opts.shareType ?? 'SMB',
           quota: quota || null,
           user_properties: [{ key: FOLDER_PROPERTY, value: opts.system ? 'system' : 'true' }],
+          ...datasetCreateEncryption(req.encryption),
         },
       ]),
     );
+    await afterFolderCreated(ctx, datasetId, req.encryption);
   }
   if (opts.shareType !== 'APPS') {
     await step('Setting permissions', () =>
