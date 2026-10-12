@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /** A pool member in the "View drives" panel: health, badges, identification and Replace. */
 import { computed } from 'vue';
-import { HardDrive, MemoryStick, Replace, Thermometer } from 'lucide-vue-next';
+import { HardDrive, MemoryStick, Replace, Stethoscope, Thermometer } from 'lucide-vue-next';
 import type { Drive } from '@apexos/api-types';
 import { DRIVE_KIND_LABELS, formatBytes, formatTemperature } from '../../lib/format.ts';
 import { driveTitle } from './drives.ts';
+import { healthBadge } from './driveHealth.ts';
 
 const props = defineProps<{
   drive: Drive;
@@ -15,7 +16,7 @@ const props = defineProps<{
   /** Why Replace is disabled right now, if it is. */
   replaceBlocked?: string | null;
 }>();
-const emit = defineEmits<{ replace: [] }>();
+const emit = defineEmits<{ replace: []; health: [] }>();
 
 const errorCount = computed(() => props.drive.errors.read + props.drive.errors.write + props.drive.errors.checksum);
 
@@ -34,13 +35,12 @@ const state = computed(() => {
     return { cls: 'err', text: 'Faulty', detail: 'This drive has stopped working. Replace it to restore protection.' };
   }
   if (s === 'OFFLINE') return { cls: 'warn', text: 'Offline', detail: 'This drive was taken offline.' };
+  // Automatic error handling: checking, watching, or a diagnosis such as "Check cable".
+  const health = healthBadge(d.health);
+  if (health) return health;
   if (s === 'DEGRADED') return { cls: 'warn', text: 'Failing', detail: 'This drive is having trouble. Plan to replace it.' };
   if (errorCount.value > 0) {
-    return {
-      cls: 'warn',
-      text: 'Check cable',
-      detail: 'The drive reported errors. Often a loose or worn cable is to blame; reseat it, then run a pool check.',
-    };
+    return { cls: 'warn', text: 'Errors reported', detail: 'The drive reported errors. ApexOs looks into new errors automatically; see Health for details.' };
   }
   return { cls: 'ok', text: 'Healthy', detail: null };
 });
@@ -73,11 +73,16 @@ const icon = computed(() => (props.drive.kind === 'HDD' ? HardDrive : MemoryStic
       </div>
     </dl>
     <p v-if="state.detail" class="small detail">{{ state.detail }}</p>
-    <div v-if="canReplace" class="row">
-      <button class="btn small" :disabled="Boolean(replaceBlocked)" :title="replaceBlocked ?? undefined" @click="emit('replace')">
-        <Replace :size="15" aria-hidden="true" /> Replace
+    <div class="row wrap" style="--gap: 8px">
+      <button class="btn small" :aria-label="`Health of ${driveTitle(drive)} (${drive.serial})`" @click="emit('health')">
+        <Stethoscope :size="15" aria-hidden="true" /> Health
       </button>
-      <span v-if="replaceBlocked" class="small muted">{{ replaceBlocked }}</span>
+      <template v-if="canReplace">
+        <button class="btn small" :disabled="Boolean(replaceBlocked)" :title="replaceBlocked ?? undefined" @click="emit('replace')">
+          <Replace :size="15" aria-hidden="true" /> Replace
+        </button>
+        <span v-if="replaceBlocked" class="small muted">{{ replaceBlocked }}</span>
+      </template>
     </div>
   </div>
 </template>

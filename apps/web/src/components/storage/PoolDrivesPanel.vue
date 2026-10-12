@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /** "View drives": every member of a pool as a tile, with Replace, Add drive and Add spare. */
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { LifeBuoy, Plus } from 'lucide-vue-next';
 import type { Drive, Pool } from '@apexos/api-types';
 import Modal from '../Modal.vue';
+import DriveHealthPanel from './DriveHealthPanel.vue';
 import DriveTile from './DriveTile.vue';
 import ScanProgress from './ScanProgress.vue';
 import { toleranceText } from '../../lib/format.ts';
@@ -15,6 +16,14 @@ const rebuilding = computed(() => props.pool.scan?.kind === 'resilver' && props.
 const canReplaceAny = computed(() => props.pool.drives.length >= 2);
 const replaceBlocked = computed(() => (rebuilding.value ? 'Wait for the rebuild to finish first.' : null));
 const missingCount = computed(() => props.pool.drives.filter((d) => d.missing).length);
+
+// The drive whose health panel is open (looked up again on every refresh so it stays current).
+const healthId = ref<string | null>(null);
+const healthDrive = computed(() => [...props.pool.drives, ...props.pool.spares].find((d) => d.identifier === healthId.value) ?? null);
+function replaceFromHealth(drive: Drive) {
+  healthId.value = null;
+  emit('replace', drive);
+}
 </script>
 
 <template>
@@ -41,6 +50,7 @@ const missingCount = computed(() => props.pool.drives.filter((d) => d.missing).l
         :can-replace="canReplaceAny || d.missing"
         :replace-blocked="replaceBlocked"
         @replace="emit('replace', d)"
+        @health="healthId = d.identifier"
       />
     </div>
 
@@ -54,7 +64,7 @@ const missingCount = computed(() => props.pool.drives.filter((d) => d.missing).l
         }}
       </p>
       <div v-else class="tiles">
-        <DriveTile v-for="d in pool.spares" :key="d.identifier" :drive="d" />
+        <DriveTile v-for="d in pool.spares" :key="d.identifier" :drive="d" @health="healthId = d.identifier" />
       </div>
     </section>
 
@@ -64,6 +74,14 @@ const missingCount = computed(() => props.pool.drives.filter((d) => d.missing).l
       <button class="btn primary" @click="emit('close')">Done</button>
     </template>
   </Modal>
+  <DriveHealthPanel
+    v-if="healthDrive"
+    :drive="healthDrive"
+    :pool-name="pool.displayName"
+    :can-replace="healthDrive.role !== 'spare' && (canReplaceAny || healthDrive.missing) && !replaceBlocked"
+    @close="healthId = null"
+    @replace="replaceFromHealth(healthDrive)"
+  />
 </template>
 
 <style scoped>

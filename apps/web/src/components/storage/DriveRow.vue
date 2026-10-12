@@ -8,6 +8,7 @@ import { HardDrive, MemoryStick, Usb } from 'lucide-vue-next';
 import type { Drive } from '@apexos/api-types';
 import { DRIVE_KIND_LABELS, formatBytes, formatTemperature } from '../../lib/format.ts';
 import { driveTitle } from './drives.ts';
+import { healthBadge } from './driveHealth.ts';
 
 const props = withDefaults(defineProps<{ drive: Drive; dim?: boolean; showWarnings?: boolean; showTemp?: boolean }>(), {
   showWarnings: true,
@@ -24,6 +25,8 @@ const badges = computed(() => {
   }
   if (d.exportedPool) out.push({ text: `Holds pool “${d.exportedPool}”`, cls: 'info', title: 'This drive belongs to a pool that is not connected right now.' });
   else if (d.warnings.includes('EXISTING_DATA')) out.push({ text: 'Has data', cls: 'info', title: 'This drive has partitions on it. Using it erases them.' });
+  const health = healthBadge(d.health);
+  if (health) out.push({ text: health.text, cls: health.cls, title: health.detail });
   if (d.warnings.includes('DUPLICATE_SERIAL')) out.push({ text: 'Duplicate serial', cls: 'warn', title: 'Often caused by USB enclosures that hide the real serial number.' });
   return out;
 });

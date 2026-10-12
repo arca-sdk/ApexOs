@@ -80,6 +80,7 @@ anywhere else.
 | `APEXOS_TRUENAS_URL`, `APEXOS_TRUENAS_API_KEY` | — | Pre-configure the TrueNAS connection (e.g. `wss://nas.lan/api/v25.10.0`) |
 | `APEXOS_SECURE_COOKIES` | off | Mark the session cookie `Secure` when served over HTTPS |
 | `APEXOS_DEMO`, `APEXOS_DEMO_SCENARIO` | off, `fresh` | Demo mode with the simulated TrueNAS |
+| `APEXOS_DRIVE_CHECK_INTERVAL_MS` | `600000` (10 min) | How often drive error counters are checked (pool changes also trigger a check) |
 
 ## How it works
 

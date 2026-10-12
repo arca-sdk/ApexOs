@@ -13,6 +13,7 @@ import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { describeTopology, estimateLayout, MAX_EXPANDED_DRIVES, MIN_DRIVE_BYTES, poolKindFor } from '../lib/layout.ts';
 import { dateToIso, driveKind, isSmr, propNumber } from '../truenas/helpers.ts';
+import { attachDriveHealth } from './drive-health.ts';
 import { recordCheckStarted } from './pool-checks.ts';
 import type { TnDataset, TnDisk, TnDiskDetail, TnDockerConfig, TnPool, TnScrubTask, TnVdev } from '../truenas/types.ts';
 
@@ -243,6 +244,7 @@ export function buildOverview(ctx: AppContext, snap: StorageSnapshot): StorageOv
     };
   });
 
+  attachDriveHealth(ctx, [...drives, ...[...missingByPool.values()].flat()]);
   return {
     pools,
     unassigned: drives.filter((d) => !d.pool),

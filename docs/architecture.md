@@ -46,6 +46,17 @@ Running as the helper rather than root also avoids TrueNAS mailing cron output t
 The helper account is visible in the TrueNAS UI (Credentials → Users); deleting it is harmless, ApexOs
 recreates it on next use.
 
+## Drive health
+
+`apps/server/src/services/drive-health.ts` runs in the background (every 10 minutes and shortly after
+pool changes) and compares each pool member's ZFS read/write/checksum counters with what it saw last.
+New errors are recorded per drive, and SMART is read with `smartctl -j -H -A`. A drive that reports
+damaged areas, rates itself as failing, or stopped working gets a "Replace drive" notice and its
+counters are never reset. Otherwise ApexOs runs a pool check; if that check finishes clean, it resets
+that drive's counters once (`zpool clear <pool> <vdev guid>`, at most once a month per drive) and
+watches it for a month. Errors that come back within the month produce one notice with the likely cause
+(cable, controller, memory, or unclear). Per-drive history lives in `state.json` (`driveHealth`).
+
 ## Tasks
 
 Every operation that changes the server (setup, pool changes, folder changes, app installs, updates)

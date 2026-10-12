@@ -73,6 +73,7 @@ call `mock.save()` after direct mutations.
   In a demo state file, edit the pool's `dataErrors` array instead.
 - `addLatentDataErrors(pool, entries)`: damage nobody noticed yet; the next scrub that finishes adds it to
   the list (e.g. a check after a repair finding more damage).
+- `setMemoryErrors(count, location?)`: raises (or, with 0, clears) the `MemoryErrors` hardware alert.
 
 ## What is simulated
 

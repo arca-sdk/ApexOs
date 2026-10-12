@@ -178,6 +178,8 @@ export interface Drive {
   unavailableReason: string | null;
   /** True for a pool member that ZFS reports as missing. */
   missing: boolean;
+  /** Automatic error handling for pool members (see "Drive diagnosis" below); absent until ApexOs has seen errors on the drive. */
+  health?: DriveHealth;
 }
 
 export type PoolLayout = 'STRIPE' | 'MIRROR' | 'RAIDZ1' | 'RAIDZ2' | 'RAIDZ3';
@@ -688,3 +690,100 @@ export interface RepairPoolRequest {
 }
 
 /** POST /api/storage/pools/:id/reset-errors → { ok: true }  (clears error counters only) */
+
+// --- Drive diagnosis ---
+//
+// ApexOs watches the ZFS read/write/checksum error counters of every pool member (every 10 minutes and
+// whenever the pool changes). When a drive reports new errors it records them, reads the drive's SMART
+// data and either flags the drive for replacement right away (damaged areas, or the drive failed and did
+// not come back) or runs a pool check. If that check finishes clean, ApexOs resets the drive's counters
+// once and watches it for a month. Errors that come back during that month produce exactly one notice
+// with a likely cause (`DriveDiagnosis`).
+
+/** `ok`: nothing to do · `checking`: a pool check is (about to be) running for this drive's errors ·
+ *  `watching`: errors were repaired and the counters reset; watched until `watchUntil` ·
+ *  `attention`: the user should act (see `diagnosis`). */
+export type DriveHealthState = 'ok' | 'checking' | 'watching' | 'attention';
+
+/** Likely cause of errors that came back (or of a drive that is wearing out). */
+export type DriveDiagnosis = 'check-cable' | 'check-controller' | 'check-memory' | 'replace-drive' | 'unclear';
+
+export interface DriveErrorCounts {
+  read: number;
+  write: number;
+  checksum: number;
+}
+
+export interface DriveHealth {
+  state: DriveHealthState;
+  /** End of the watch period after ApexOs reset the counters (ISO date), else null. */
+  watchUntil: string | null;
+  /** When ApexOs last saw new errors on this drive. */
+  lastErrorAt: string | null;
+  diagnosis: DriveDiagnosis | null;
+}
+
+/** What the drive says about itself (smartctl). Counts are null when the drive does not report them. */
+export interface SmartSummary {
+  readAt: string;
+  /** False when the drive's own overall assessment is "failing"; null when unknown. */
+  passed: boolean | null;
+  /** ATA attribute 5. */
+  reallocatedSectors: number | null;
+  /** ATA attribute 197. */
+  pendingSectors: number | null;
+  /** ATA attribute 198. */
+  offlineUncorrectable: number | null;
+  /** NVMe media and data integrity errors. */
+  mediaErrors: number | null;
+  powerOnHours: number | null;
+  temperatureC: number | null;
+  /** The drive reports damaged areas (any of the sector/media counts above is non-zero). */
+  damaged: boolean;
+}
+
+export type DriveHealthEventKind =
+  | 'errors' // new errors were counted
+  | 'failed' // the drive stopped working (FAULTED, REMOVED, UNAVAIL)
+  | 'recovered' // a failed drive is back online
+  | 'smart' // SMART data was read
+  | 'check' // pool check started, waiting, finished or could not finish
+  | 'cleared' // ApexOs reset the drive's error counters
+  | 'kept' // ApexOs deliberately did not reset the counters
+  | 'watch' // watch period started or ended
+  | 'diagnosis' // a likely cause was found and the user was told
+  | 'pool'; // the drive joined or left a pool
+
+export interface DriveHealthEvent {
+  time: string;
+  kind: DriveHealthEventKind;
+  /** Plain-language description of what happened or what ApexOs did. */
+  message: string;
+  /** New errors counted with this event (for `errors`), else null. */
+  errors: DriveErrorCounts | null;
+}
+
+/** GET /api/storage/drives/:identifier/health → DriveHealthDetail (`identifier` URL-encoded). */
+export interface DriveHealthDetail {
+  identifier: string;
+  name: string;
+  serial: string;
+  model: string;
+  pool: string | null;
+  /** Current ZFS error counters (zero for drives outside a pool). */
+  errors: DriveErrorCounts;
+  health: DriveHealth;
+  /** Why ApexOs reached `health.diagnosis`, e.g. which drives reported errors together. */
+  diagnosisNote: string | null;
+  /** Latest SMART reading, or null when it has never been read. */
+  smart: SmartSummary | null;
+  /** Error episodes and the actions ApexOs took, newest first. */
+  events: DriveHealthEvent[];
+  /** How often the counters are checked, in minutes. */
+  checkIntervalMinutes: number;
+}
+
+/**
+ * POST /api/storage/drives/:identifier/smart → SmartSummary
+ * Reads SMART now (takes a few seconds). 409 SMART_UNAVAILABLE when the drive can't report it.
+ */

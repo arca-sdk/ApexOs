@@ -2,7 +2,7 @@
  * @apexos/mock-truenas: an in-memory, stateful simulation of the TrueNAS SCALE 25.10 middleware
  * JSON-RPC 2.0 websocket API, for integration tests and ApexOs's demo mode.
  */
-import { registerAlerts, syncAllAlerts, syncPoolAlerts } from './alerts.ts';
+import { clearAlert, raiseAlert, registerAlerts, syncAllAlerts, syncPoolAlerts } from './alerts.ts';
 import { Mock, type MockConfig } from './context.ts';
 import { registerEvents } from './events.ts';
 import { registerAccounts } from './methods/accounts.ts';
@@ -79,6 +79,8 @@ export interface MockTrueNas {
   setDataErrors(pool: string, files: string[]): void;
   /** Damage the next finished scrub of the pool discovers (added to the `zpool status -v` list then). */
   addLatentDataErrors(pool: string, files: string[]): void;
+  /** Raises (count > 0) or clears the `MemoryErrors` hardware alert (uncorrected ECC errors on a DIMM). */
+  setMemoryErrors(count: number, location?: string): void;
   /** Mail the simulated middleware sent (cron output to users with an e-mail address). */
   readonly mailLog: readonly { to: string; subject: string; text: string }[];
   /** Writes the state file now (no-op without `stateFile`). */
@@ -246,6 +248,11 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
       const pool = mock.state.pools.find((p) => p.name === poolName);
       if (!pool) throw new Error(`No pool named ${poolName}`);
       pool.latentDataErrors = [...(pool.latentDataErrors ?? []), ...files];
+      persist();
+    },
+    setMemoryErrors(count, location = 'DIMM_A1') {
+      if (count > 0) raiseAlert(mock, 'MemoryErrors', { count, loc: location }, ['MemoryErrors', location]);
+      else clearAlert(mock, 'MemoryErrors');
       persist();
     },
     get mailLog() {

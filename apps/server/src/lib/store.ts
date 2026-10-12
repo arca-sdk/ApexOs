@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { LocationPreferenceId, NoticeLevel } from '@apexos/api-types';
+import type { DriveDiagnosis, DriveErrorCounts, DriveHealthEvent, LocationPreferenceId, NoticeLevel, SmartSummary } from '@apexos/api-types';
 import type { StoredPreferences } from '@apexos/shared/eshtek/preferences';
 
 /** What ApexOs remembers about an app it installed (TrueNAS remains the source of truth for the app itself). */
@@ -27,6 +27,42 @@ export interface ApexOsNotice {
   link: string | null;
 }
 
+/** What ApexOs remembers about one drive's errors (see services/drive-health.ts). Keyed by disk identifier. */
+export interface DriveHealthRecord {
+  identifier: string;
+  name: string;
+  serial: string;
+  model: string;
+  /** Pool the drive belongs to; null once it left (e.g. after a replacement). */
+  pool: string | null;
+  /** Counters as last seen; only increases above this count as new errors. */
+  baseline: DriveErrorCounts;
+  /** Whether the drive was FAULTED/REMOVED/UNAVAIL when last seen. */
+  failed: boolean;
+  phase: 'ok' | 'checking' | 'watching' | 'attention';
+  watchUntil: string | null;
+  lastErrorAt: string | null;
+  /** Last time ApexOs itself reset this drive's counters (it does so at most once a month). */
+  lastClearedAt: string | null;
+  diagnosis: DriveDiagnosis | null;
+  diagnosisNote: string | null;
+  /** The diagnosis of an earlier episode (e.g. "check cable"), so advice that didn't help isn't repeated. */
+  previousDiagnosis: DriveDiagnosis | null;
+  /** Diagnoses the user has already been told about for the current episode (one notice per episode). */
+  notified: DriveDiagnosis[];
+  /** The pool check ApexOs runs for the current episode. */
+  check: { pool: string; requestedAt: string; startedAt: string | null; attempts: number } | null;
+  smart: SmartSummary | null;
+  /** Newest first, capped. */
+  events: DriveHealthEvent[];
+}
+
+export interface DriveHealthStore {
+  drives: Record<string, DriveHealthRecord>;
+  /** Pool → end time of the last check whose unreadable data was already reported (non-redundant pools). */
+  dataLoss: Record<string, string>;
+}
+
 export interface ApexOsState {
   version: 1;
   /** Secret used to sign session cookies. */
@@ -48,6 +84,7 @@ export interface ApexOsState {
   poolNames: Record<string, string>;
   apps: Record<string, InstalledAppRecord>;
   notices: ApexOsNotice[];
+  driveHealth: DriveHealthStore;
 }
 
 function defaultState(): ApexOsState {
@@ -59,6 +96,7 @@ function defaultState(): ApexOsState {
     poolNames: {},
     apps: {},
     notices: [],
+    driveHealth: { drives: {}, dataLoss: {} },
   };
 }
 
@@ -83,6 +121,7 @@ export class StateStore {
         poolNames: { ...raw.poolNames },
         apps: { ...raw.apps },
         notices: raw.notices ?? [],
+        driveHealth: { drives: { ...raw.driveHealth?.drives }, dataLoss: { ...raw.driveHealth?.dataLoss } },
       };
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;

@@ -28,6 +28,7 @@ const ALERT_TITLES: Record<string, { title: string; link: string | null }> = {
   NTPHealthCheck: { title: 'The server clock may be wrong', link: '/settings' },
   DockerImageUpdate: { title: 'App image update available', link: '/apps' },
   FailoverUnavailable: { title: 'Failover is unavailable', link: null },
+  MemoryErrors: { title: 'The server reported memory errors', link: null },
 };
 
 function levelOf(level: TnAlert['level']): NoticeLevel {

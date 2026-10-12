@@ -29,6 +29,12 @@ export const ALERT_CLASSES: Record<string, AlertClass> = {
     text: 'Disk %(disk)s temperature is %(temperature)s°C which exceeds the critical threshold of %(critical)s°C.',
     category: 'HARDWARE',
   },
+  MemoryErrors: {
+    level: 'WARNING',
+    title: 'Uncorrected Memory Errors Detected',
+    text: '%(count)s total uncorrected errors detected for %(loc)s.',
+    category: 'HARDWARE',
+  },
   HasUpdate: {
     level: 'INFO',
     title: 'Update Available',

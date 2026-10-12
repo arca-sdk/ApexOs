@@ -7,6 +7,7 @@ import { loadScripts } from './lib/install-script.ts';
 import { StateStore } from './lib/store.ts';
 import { TaskManager } from './lib/tasks.ts';
 import { TrueNasManager } from './lib/truenas.ts';
+import { startDriveHealthMonitor } from './services/drive-health.ts';
 import { startMetrics } from './services/metrics.ts';
 import { recordTaskNotices } from './services/notifications.ts';
 
@@ -81,11 +82,15 @@ if (config.demo) {
   }
 }
 
+// Watches pool drives for errors (repairs, resets counters once, diagnoses recurring errors).
+const driveHealth = startDriveHealthMonitor(ctx);
+
 const app = await buildApp(ctx);
 await app.listen({ port: config.port, host: config.host });
 console.log(`ApexOs ${config.demo ? '(demo) ' : ''}is running on http://localhost:${config.port}`);
 
 const shutdown = async () => {
+  await driveHealth.stop();
   await app.close();
   await truenas.close();
   await closeMock?.();
