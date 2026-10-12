@@ -27,13 +27,13 @@ ApexOs is not affiliated with, endorsed by, or connected to Eshtek, Inc. (HexOS)
 | **Locations** | Named places for app data (*Apps (fast storage)*, *Media*, *Movies*, *Photos*, *Downloads*…), created on first use on the best pool and locked while apps use them. |
 | **Dashboard** | System, memory, network and per-app live metrics, storage rings, app cards, update banner. |
 | **Notifications & activity** | TrueNAS alerts with plain-language titles (dismissals sync back), ApexOs task results, running tasks with step-by-step progress. |
-| **Settings** | Server name, account password, time zone, network overview, locations, TrueNAS updates, restart/shut down, temperature unit. |
+| **Network** | Per-port DHCP or static address, gateway, DNS servers and VLANs. Changes are applied with TrueNAS's automatic rollback: if ApexOs can't reach the server afterwards, the previous settings come back by themselves. |
+| **Settings** | Server name, account password, time zone, locations, TrueNAS updates, restart/shut down, temperature unit. |
 
 ### Not in this release
 Folder encryption and recovery keys, the file browser, virtual machines, Buddy-style backups,
 remote access/relay, drive certification and deep checks, memory tests, email notifications,
-static network configuration, translations, and app hooks/widgets. These were deliberately left
-out of the core proof of concept.
+translations, and app hooks/widgets.
 
 ## Try it (demo mode — no NAS needed)
 
