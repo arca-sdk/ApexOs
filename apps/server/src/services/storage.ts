@@ -13,6 +13,7 @@ import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { describeTopology, estimateLayout, MAX_EXPANDED_DRIVES, MIN_DRIVE_BYTES, poolKindFor } from '../lib/layout.ts';
 import { dateToIso, driveKind, isSmr, propNumber } from '../truenas/helpers.ts';
+import { recordCheckStarted } from './pool-checks.ts';
 import type { TnDataset, TnDisk, TnDiskDetail, TnDockerConfig, TnPool, TnScrubTask, TnVdev } from '../truenas/types.ts';
 
 /** Everything storage-related, fetched together so views are consistent. */
@@ -429,6 +430,7 @@ export async function startScrub(ctx: AppContext, pool: Pool): Promise<void> {
   if (pool.health === 'offline') throw new UserError('The pool is offline; reconnect its drives first.', 409, 'POOL_OFFLINE');
   // The scrub job runs for as long as the scrub; progress is read from the pool's scan state.
   await ctx.truenas.client().call('pool.scrub', [pool.id, 'START']);
+  await recordCheckStarted(ctx, pool.name);
 }
 
 export async function findImportable(ctx: AppContext): Promise<ImportablePool[]> {
