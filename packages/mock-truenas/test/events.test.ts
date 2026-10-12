@@ -79,7 +79,7 @@ describe('events', () => {
     expect((await client.call<Any>('update.status')).status.new_version).toBeNull();
     expect((await client.call<Any[]>('alert.list')).some((a) => a.klass === 'HasUpdate')).toBe(false);
     await expect(client.call('system.reboot', [''])).rejects.toThrow(/reason/);
-    expect(await client.job('system.reboot', ['Applying update from Hearth', { delay: null }])).toBeNull();
+    expect(await client.job('system.reboot', ['Applying update from ApexOs', { delay: null }])).toBeNull();
   });
 
   it('serves network and general settings', async () => {

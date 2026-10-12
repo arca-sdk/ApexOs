@@ -2,7 +2,7 @@
 /** Network address of a shared folder, with a Mac/Linux vs Windows format switch, copy button and short how-to. */
 import { computed, ref, useId, watch } from 'vue';
 import { Check, Copy } from 'lucide-vue-next';
-import type { Folder } from '@hearth/api-types';
+import type { Folder } from '@apexos/api-types';
 import { copyText, detectOs, folderAddress, rememberOs, type ConnectOs } from './folderRules.ts';
 
 const props = defineProps<{ folder: Folder }>();

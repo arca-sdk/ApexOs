@@ -2,7 +2,7 @@
 /** Step 2: the four hardware scan cards; each opens a side panel with its checks and facts. */
 import { computed, ref } from 'vue';
 import { Boxes, ChevronRight, CircleAlert, CircleCheck, CircleHelp, HardDrive, Info, Monitor, Server, TriangleAlert } from 'lucide-vue-next';
-import type { ScanCard, ScanCardId, ScanCheck, ScanStatus } from '@hearth/api-types';
+import type { ScanCard, ScanCardId, ScanCheck, ScanStatus } from '@apexos/api-types';
 import SidePanel from './SidePanel.vue';
 import DriveRow from '../storage/DriveRow.vue';
 import { formatMemory } from '../../lib/format.ts';
@@ -72,7 +72,7 @@ const system = computed(() => scan.value?.system ?? null);
       <component :is="STATUS[openCard.status].icon" :size="18" aria-hidden="true" />
       <strong>{{ openCard.summary }}</strong>
     </p>
-    <p v-if="openCard.status === 'unavailable'" class="small muted">Hearth couldn’t read these details from TrueNAS. This doesn’t block setup.</p>
+    <p v-if="openCard.status === 'unavailable'" class="small muted">ApexOs couldn’t read these details from TrueNAS. This doesn’t block setup.</p>
 
     <section v-if="openCard.checks.length" class="stack" style="--gap: 10px">
       <h3>What we found</h3>

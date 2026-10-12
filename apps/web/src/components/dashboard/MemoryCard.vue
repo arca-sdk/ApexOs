@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { MemoryStick } from 'lucide-vue-next';
-import type { SystemSummary } from '@hearth/api-types';
+import type { SystemSummary } from '@apexos/api-types';
 import { formatMemory } from '../../lib/format.ts';
 import Sparkline from '../Sparkline.vue';
 import { latest, memoryBreakdown, sampleTimes, seriesOf } from './live.ts';

@@ -5,7 +5,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Download, HardDrive, Plus, TriangleAlert } from 'lucide-vue-next';
-import type { Drive, NewPoolSpec, Pool, StorageOverview, Task, TaskStarted } from '@hearth/api-types';
+import type { Drive, NewPoolSpec, Pool, StorageOverview, Task, TaskStarted } from '@apexos/api-types';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import PageState from '../components/PageState.vue';
 import AddDriveDialog from '../components/storage/AddDriveDialog.vue';
@@ -184,7 +184,7 @@ const totals = computed(() => {
         <TriangleAlert :size="18" aria-hidden="true" />
         <span>
           <strong>{{ atRisk.displayName }} is {{ atRisk.health }}.</strong>
-          Until it is healthy again, avoid restarting the server, updating it or changing other drives. Hearth asks you to confirm before any of these.
+          Until it is healthy again, avoid restarting the server, updating it or changing other drives. ApexOs asks you to confirm before any of these.
         </span>
       </p>
 

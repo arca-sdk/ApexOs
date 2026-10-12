@@ -2,7 +2,7 @@
 /** A user's page: every folder they can open, with links, plus edit/delete. */
 import { computed } from 'vue';
 import { Folder as FolderIcon, Globe, Pencil, Trash2 } from 'lucide-vue-next';
-import type { Folder, ShareUser } from '@hearth/api-types';
+import type { Folder, ShareUser } from '@apexos/api-types';
 import SidePanel from '../folders/SidePanel.vue';
 import { LEVEL_LABELS } from '../folders/folderRules.ts';
 
@@ -23,7 +23,7 @@ const publicRows = computed(() => rows.value.filter((r) => r.public));
   <SidePanel :title="user.username" subtitle="Network user" @close="emit('close')">
     <p class="small muted">
       {{ user.username }} can open the folders below from another computer by signing in with this username and password. Users can’t sign in to
-      Hearth.
+      ApexOs.
     </p>
 
     <section class="stack" style="--gap: 8px" aria-labelledby="up-private">

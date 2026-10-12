@@ -12,14 +12,14 @@ import { recordTaskNotices } from './services/notifications.ts';
 const here = fileURLToPath(new URL('.', import.meta.url));
 
 const config = {
-  port: Number(process.env.HEARTH_PORT ?? 8080),
+  port: Number(process.env.APEXOS_PORT ?? 8080),
   // Demo mode only listens on this computer unless told otherwise; the first visitor creates the admin account.
-  host: process.env.HEARTH_HOST ?? (process.env.HEARTH_DEMO === '1' ? '127.0.0.1' : '0.0.0.0'),
-  dataDir: resolve(process.env.HEARTH_DATA_DIR ?? '.data'),
-  webDir: resolve(process.env.HEARTH_WEB_DIR ?? resolve(here, '../../web/dist')),
-  catalogDir: resolve(process.env.HEARTH_CATALOG_DIR ?? resolve(here, '../catalog')),
-  demo: process.env.HEARTH_DEMO === '1',
-  secureCookies: process.env.HEARTH_SECURE_COOKIES === '1',
+  host: process.env.APEXOS_HOST ?? (process.env.APEXOS_DEMO === '1' ? '127.0.0.1' : '0.0.0.0'),
+  dataDir: resolve(process.env.APEXOS_DATA_DIR ?? '.data'),
+  webDir: resolve(process.env.APEXOS_WEB_DIR ?? resolve(here, '../../web/dist')),
+  catalogDir: resolve(process.env.APEXOS_CATALOG_DIR ?? resolve(here, '../catalog')),
+  demo: process.env.APEXOS_DEMO === '1',
+  secureCookies: process.env.APEXOS_SECURE_COOKIES === '1',
 };
 
 const dataDir = config.demo ? resolve(config.dataDir, 'demo') : config.dataDir;
@@ -47,10 +47,10 @@ recordTaskNotices(ctx);
 
 let closeMock: (() => Promise<void>) | undefined;
 if (config.demo) {
-  // Demo mode runs an in-process simulated TrueNAS so Hearth can be tried without a server.
-  const { startMockTrueNas } = await import('@hearth/mock-truenas');
-  // HEARTH_DEMO_SCENARIO=configured starts with pools, folders and an app already set up.
-  const scenario = process.env.HEARTH_DEMO_SCENARIO === 'configured' ? 'configured' : 'fresh';
+  // Demo mode runs an in-process simulated TrueNAS so ApexOs can be tried without a server.
+  const { startMockTrueNas } = await import('@apexos/mock-truenas');
+  // APEXOS_DEMO_SCENARIO=configured starts with pools, folders and an app already set up.
+  const scenario = process.env.APEXOS_DEMO_SCENARIO === 'configured' ? 'configured' : 'fresh';
   const mock = await startMockTrueNas({ apiKey: 'demo-api-key', scenario, stateFile: resolve(dataDir, `mock-truenas-${scenario}.json`) });
   if (scenario === 'configured' && !store.get().server.setupCompletedAt) {
     await store.update((s) => {
@@ -70,8 +70,8 @@ if (config.demo) {
   console.log(`Demo mode: simulated TrueNAS at ${mock.url}`);
 } else {
   const saved = store.get().truenas;
-  const envUrl = process.env.HEARTH_TRUENAS_URL;
-  const envKey = process.env.HEARTH_TRUENAS_API_KEY;
+  const envUrl = process.env.APEXOS_TRUENAS_URL;
+  const envKey = process.env.APEXOS_TRUENAS_API_KEY;
   if (envUrl && envKey) {
     await truenas.configureLazy({ url: envUrl, auth: { type: 'apiKey', apiKey: envKey } });
   } else if (saved) {
@@ -81,7 +81,7 @@ if (config.demo) {
 
 const app = await buildApp(ctx);
 await app.listen({ port: config.port, host: config.host });
-console.log(`Hearth ${config.demo ? '(demo) ' : ''}is running on http://localhost:${config.port}`);
+console.log(`ApexOs ${config.demo ? '(demo) ' : ''}is running on http://localhost:${config.port}`);
 
 const shutdown = async () => {
   await app.close();

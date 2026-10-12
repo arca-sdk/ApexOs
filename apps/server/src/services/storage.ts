@@ -7,8 +7,8 @@ import type {
   PoolHealth,
   PoolScan,
   StorageOverview,
-} from '@hearth/api-types';
-import type { TrueNasClient } from '@hearth/truenas-client';
+} from '@apexos/api-types';
+import type { TrueNasClient } from '@apexos/truenas-client';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { describeTopology, estimateLayout, MAX_EXPANDED_DRIVES, MIN_DRIVE_BYTES, poolKindFor } from '../lib/layout.ts';
@@ -323,7 +323,7 @@ export async function ensureScrubSchedule(client: TrueNasClient, poolId: number,
     {
       pool: poolId,
       threshold: 35,
-      description: 'Created by Hearth',
+      description: 'Created by ApexOs',
       schedule: { minute: '00', hour: '03', dom: '*', month: '*', dow: '7' },
       enabled: true,
     },

@@ -5,7 +5,7 @@
  */
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { Check, Globe, Lock, UserPlus } from 'lucide-vue-next';
-import type { AccessLevel, Folder, FolderAccess, FolderRequest, Pool, ShareUser, StorageOverview, TaskStarted } from '@hearth/api-types';
+import type { AccessLevel, Folder, FolderAccess, FolderRequest, Pool, ShareUser, StorageOverview, TaskStarted } from '@apexos/api-types';
 import Modal from '../Modal.vue';
 import HealthBadge from '../HealthBadge.vue';
 import PasswordInput from '../users/PasswordInput.vue';
@@ -474,7 +474,7 @@ onMounted(load);
           </section>
         </div>
         <p class="small muted">
-          {{ editing ? 'Saving updates the sharing settings. Files in the folder aren’t touched.' : 'Hearth creates the folder and shares it on your network. This takes a few seconds.' }}
+          {{ editing ? 'Saving updates the sharing settings. Files in the folder aren’t touched.' : 'ApexOs creates the folder and shares it on your network. This takes a few seconds.' }}
         </p>
         <p v-if="submitError" class="callout err" role="alert">{{ submitError }}</p>
       </template>

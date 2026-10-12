@@ -5,7 +5,7 @@
  */
 import { computed, ref } from 'vue';
 import { AppWindow, Folder, Users } from 'lucide-vue-next';
-import type { Drive, ExistingPoolSummary, ImportablePool } from '@hearth/api-types';
+import type { Drive, ExistingPoolSummary, ImportablePool } from '@apexos/api-types';
 import ConfirmDialog from '../ConfirmDialog.vue';
 import HealthBadge from '../HealthBadge.vue';
 import DriveRow from '../storage/DriveRow.vue';
@@ -122,7 +122,7 @@ const otherUsers = computed(() => state.info?.serverUsers ?? []);
         <span class="spin" /> Looking for pools on your drives. This can take a minute…
       </div>
       <div v-else-if="state.importable.status === 'error'" class="callout err stack" style="--gap: 8px" role="alert">
-        <span>Hearth couldn’t check your drives for other pools: {{ state.importable.error }}</span>
+        <span>ApexOs couldn’t check your drives for other pools: {{ state.importable.error }}</span>
         <span class="small">To keep you from erasing something by accident, you can only continue once this check works.</span>
         <div><button class="btn small" @click="wizard.loadImportable(true)">Try again</button></div>
       </div>

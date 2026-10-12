@@ -2,7 +2,7 @@
  * Client-side mirrors of the server's folder/user rules, so the forms can explain problems
  * next to the right input before anything is sent. The server stays the source of truth.
  */
-import type { AccessLevel, Folder } from '@hearth/api-types';
+import type { AccessLevel, Folder } from '@apexos/api-types';
 
 export const FOLDER_NAME_MAX = 80;
 export const USERNAME_MAX = 30;
@@ -20,7 +20,7 @@ export function folderNameProblem(raw: string, reserved: string[], existing: str
     return 'Use letters, numbers, spaces, dashes or underscores. The name can’t start or end with a space, dash or underscore, or repeat them.';
   }
   const lower = name.toLowerCase();
-  if (reserved.some((r) => r.toLowerCase() === lower)) return `“${name}” is reserved for Hearth. Pick another name.`;
+  if (reserved.some((r) => r.toLowerCase() === lower)) return `“${name}” is reserved for ApexOs. Pick another name.`;
   if (existing.some((e) => e.toLowerCase() === lower)) return `You already have a folder called “${name}”.`;
   return null;
 }
@@ -32,7 +32,7 @@ export function usernameProblem(raw: string, taken: string[] = []): string | nul
   if (name.length < 3) return 'Use at least 3 characters.';
   if (!/^[a-zA-Z]/.test(name)) return 'Start the username with a letter.';
   if (!USERNAME.test(name)) return 'Use only letters, numbers, dashes or underscores.';
-  if (name.toLowerCase().startsWith('hearth_')) return 'Names starting with “hearth_” are reserved.';
+  if (name.toLowerCase().startsWith('apexos_')) return 'Names starting with “apexos_” are reserved.';
   if (taken.some((t) => t.toLowerCase() === name.toLowerCase())) return 'That username is already taken.';
   return null;
 }
@@ -50,7 +50,7 @@ export const LEVEL_LABELS: Record<AccessLevel, string> = {
 
 export type ConnectOs = 'mac' | 'windows';
 
-const OS_KEY = 'hearth.connectOs';
+const OS_KEY = 'apexos.connectOs';
 
 /** The format the visitor picked last time, or a best guess from their OS. */
 export function detectOs(): ConnectOs {

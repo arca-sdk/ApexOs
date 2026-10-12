@@ -2,7 +2,7 @@
 /** "View drives": every member of a pool as a tile, with Replace, Add drive and Add spare. */
 import { computed } from 'vue';
 import { LifeBuoy, Plus } from 'lucide-vue-next';
-import type { Drive, Pool } from '@hearth/api-types';
+import type { Drive, Pool } from '@apexos/api-types';
 import Modal from '../Modal.vue';
 import DriveTile from './DriveTile.vue';
 import ScanProgress from './ScanProgress.vue';

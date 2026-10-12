@@ -1,4 +1,4 @@
-import type { DriveKind } from '@hearth/api-types';
+import type { DriveKind } from '@apexos/api-types';
 import type { TnDataset, TnDate, TnDisk, TnProperty } from './types.ts';
 
 export function dateToIso(d: TnDate | null | undefined): string | null {

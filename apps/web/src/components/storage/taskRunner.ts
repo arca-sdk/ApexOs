@@ -1,5 +1,5 @@
 import { computed, ref, watch } from 'vue';
-import type { Task, TaskStarted } from '@hearth/api-types';
+import type { Task, TaskStarted } from '@apexos/api-types';
 import { ApiError } from '../../lib/api.ts';
 import { live } from '../../lib/events.ts';
 import { pollRunningTask } from './taskPoll.ts';

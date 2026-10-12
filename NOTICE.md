@@ -2,7 +2,7 @@
 
 ## License
 
-Copyright (C) 2026 the Hearth contributors.
+Copyright (C) 2026 the ApexOs contributors.
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU
 General Public License as published by the Free Software Foundation, either version 3 of the License,
@@ -23,13 +23,13 @@ app schemas (`questions.yaml`) of [truenas/apps](https://github.com/truenas/apps
 
 ## Clean-room boundaries
 
-Hearth's feature set was derived from HexOS's *public* product descriptions (website, documentation,
+ApexOs's feature set was derived from HexOS's *public* product descriptions (website, documentation,
 release notes). The following were deliberately **not** used, copied or consulted for code:
 
 - HexOS's proprietary application code (the "Command Deck" web app and on-server agent), including
   the minified JavaScript served by `deck.hexos.com`.
 - Repositories without a license grant: `eshtek/hexos-app-catalog`, `eshtek/hexos-vm-catalog`,
-  `eshtek/hexos-offline`. Hearth's install-script format is inspired by the concepts described in
+  `eshtek/hexos-offline`. ApexOs's install-script format is inspired by the concepts described in
   HexOS's public docs and by the GPL-licensed types in hexos-shared; every script was written from scratch.
 - Any leaked or non-public material.
 
@@ -38,4 +38,4 @@ HexOS documentation is licensed CC BY-SA 4.0; no documentation text is included 
 ## Trademarks
 
 "HexOS" is a trademark of Eshtek, Inc. "TrueNAS" is a trademark of iXsystems, Inc. They are used
-here only to describe compatibility and origin. Hearth is not affiliated with or endorsed by either.
+here only to describe compatibility and origin. ApexOs is not affiliated with or endorsed by either.

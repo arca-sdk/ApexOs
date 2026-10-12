@@ -1,4 +1,4 @@
-import type { DriveKind, LayoutEstimate, PlanPriority, PlannedPool, PoolKind, PoolLayout, PoolLayoutInfo, PoolPlan } from '@hearth/api-types';
+import type { DriveKind, LayoutEstimate, PlanPriority, PlannedPool, PoolKind, PoolLayout, PoolLayoutInfo, PoolPlan } from '@apexos/api-types';
 
 /** Minimal drive facts the planner needs. */
 export interface PlanDrive {

@@ -2,7 +2,7 @@
 /** One install-script question rendered as the right kind of input. */
 import { computed, ref } from 'vue';
 import { Eye, EyeOff, RefreshCw } from 'lucide-vue-next';
-import type { InstallQuestion } from '@hearth/api-types';
+import type { InstallQuestion } from '@apexos/api-types';
 
 const props = defineProps<{
   question: InstallQuestion;

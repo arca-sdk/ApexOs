@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import type { ChangeTopic, MetricsSample } from '@hearth/api-types';
+import type { ChangeTopic, MetricsSample } from '@apexos/api-types';
 
 interface BusEvents {
   changed: [ChangeTopic];

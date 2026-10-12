@@ -71,10 +71,10 @@ onServerChange(['truenas-connected', 'truenas-disconnected', 'system'], load);
     <section v-if="uiUrl" class="card stack" aria-labelledby="tn-ui-h">
       <h2 id="tn-ui-h">TrueNAS UI</h2>
       <p class="muted small">
-        Hearth runs on top of TrueNAS. For settings Hearth doesn’t cover, you can use the full TrueNAS interface. It only works from your home network. Sign in
+        ApexOs runs on top of TrueNAS. For settings ApexOs doesn’t cover, you can use the full TrueNAS interface. It only works from your home network. Sign in
         with your TrueNAS admin account; your browser may warn about the certificate the first time, which is expected for a home server.
       </p>
-      <p class="small muted">Be careful there: changes to folders, shares or users made in TrueNAS can confuse Hearth.</p>
+      <p class="small muted">Be careful there: changes to folders, shares or users made in TrueNAS can confuse ApexOs.</p>
       <div>
         <a :href="uiUrl" target="_blank" rel="noopener" class="btn small">Open the TrueNAS UI <ExternalLink :size="14" /></a>
       </div>

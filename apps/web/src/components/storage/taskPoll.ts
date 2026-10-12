@@ -1,5 +1,5 @@
 import { onBeforeUnmount, onMounted } from 'vue';
-import type { Task } from '@hearth/api-types';
+import type { Task } from '@apexos/api-types';
 import { api } from '../../lib/api.ts';
 import { live } from '../../lib/events.ts';
 

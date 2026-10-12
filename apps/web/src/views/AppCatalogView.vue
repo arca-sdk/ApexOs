@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ArrowLeft, Search, Sparkles, X } from 'lucide-vue-next';
-import type { CatalogApp, CatalogResponse } from '@hearth/api-types';
+import type { CatalogApp, CatalogResponse } from '@apexos/api-types';
 import { api } from '../lib/api.ts';
 import { onServerChange } from '../lib/events.ts';
 import PageState from '../components/PageState.vue';
@@ -144,7 +144,7 @@ function clearFilters() {
         <section v-if="curated.length" class="stack" style="--gap: 12px" aria-labelledby="sec-curated">
           <div>
             <h2 id="sec-curated">Ready in one click</h2>
-            <p class="small muted">Curated by Hearth: folders, permissions and settings are taken care of, and the app is ready when it opens.</p>
+            <p class="small muted">Curated by ApexOs: folders, permissions and settings are taken care of, and the app is ready when it opens.</p>
           </div>
           <div class="grid" style="--min: 250px">
             <CatalogCard v-for="app in curated" :key="`${app.train}/${app.id}`" :app="app" @open="open(app)" />

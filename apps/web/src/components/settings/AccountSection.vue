@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** The Hearth sign-in account (existing behaviour: change password). */
+/** The ApexOs sign-in account (existing behaviour: change password). */
 import { ref } from 'vue';
 import { ApiError, api, session } from '../../lib/api.ts';
 

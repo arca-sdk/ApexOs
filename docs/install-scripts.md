@@ -7,7 +7,7 @@ it declares what the app needs, asks a few questions, prepares folders, and prod
 (e.g. `jellyfin.json`). Apps without a script can still be installed with TrueNAS defaults.
 
 The format follows the concepts of the HexOS install-script schema (see `AppsInstallScript` in
-`packages/shared/eshtek/apps.ts`); Hearth implements version 4 without hooks or widgets.
+`packages/shared/eshtek/apps.ts`); ApexOs implements version 4 without hooks or widgets.
 
 ## Root fields
 
@@ -34,7 +34,7 @@ The format follows the concepts of the HexOS install-script schema (see `AppsIns
 
 - `locations`: every location id used by `$LOCATION(...)`. Valid ids: `ApplicationsPerformance`,
   `ApplicationsCapacity`, `Downloads`, `Documents`, `Media`, `Photos`, `Music`, `Movies`, `Shows`, `Videos`.
-  Locations are created by Hearth on first use (a folder named after the location on a suitable pool).
+  Locations are created by ApexOs on first use (a folder named after the location on a suitable pool).
 - `specifications`: `{n}CORE` (minimum CPU threads), `{n}GBRAM` / `{n}MBRAM` (minimum memory),
   `{n}GB` / `{n}MB` (approximate install size), `GPU` (needs a GPU; advisory only).
 - `permissions`: currently only `READ_WRITE_LOCATIONS`.
@@ -82,7 +82,7 @@ When a macro is the entire string and produces an object, the string is replaced
 | `$SERVER_LAN_IP` | The server's LAN IP address. |
 | `$TIMEZONE` | The server's time zone, e.g. `Europe/Madrid`. |
 
-Unknown `$NAMES` are left as text and reported by the validator (`pnpm --filter @hearth/server validate-scripts`).
+Unknown `$NAMES` are left as text and reported by the validator (`pnpm --filter @apexos/server validate-scripts`).
 
 ## Install pipeline
 

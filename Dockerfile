@@ -4,17 +4,17 @@ RUN corepack enable
 WORKDIR /src
 COPY . .
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @hearth/web build && pnpm --filter @hearth/server build
-RUN pnpm --filter @hearth/server deploy --prod --legacy /out
+RUN pnpm --filter @apexos/web build && pnpm --filter @apexos/server build
+RUN pnpm --filter @apexos/server deploy --prod --legacy /out
 
 FROM node:24-slim
 WORKDIR /app
 ENV NODE_ENV=production \
-    HEARTH_PORT=8080 \
-    HEARTH_HOST=0.0.0.0 \
-    HEARTH_DATA_DIR=/data \
-    HEARTH_WEB_DIR=/app/web \
-    HEARTH_CATALOG_DIR=/app/catalog
+    APEXOS_PORT=8080 \
+    APEXOS_HOST=0.0.0.0 \
+    APEXOS_DATA_DIR=/data \
+    APEXOS_WEB_DIR=/app/web \
+    APEXOS_CATALOG_DIR=/app/catalog
 COPY --from=build /out/node_modules ./node_modules
 COPY --from=build /src/apps/server/dist ./dist
 COPY --from=build /src/apps/server/catalog ./catalog

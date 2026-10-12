@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { FolderPlus, Users } from 'lucide-vue-next';
-import type { Folder, FoldersResponse, ShareUser } from '@hearth/api-types';
+import type { Folder, FoldersResponse, ShareUser } from '@apexos/api-types';
 import PageState from '../components/PageState.vue';
 import DeleteFolderDialog from '../components/folders/DeleteFolderDialog.vue';
 import FolderCard from '../components/folders/FolderCard.vue';
@@ -126,7 +126,7 @@ async function deleted() {
       <section v-if="system.length" class="stack" aria-labelledby="system-h">
         <div class="stack" style="--gap: 4px">
           <h2 id="system-h">System folders</h2>
-          <p class="small muted">Hearth sets these up for apps and locations, such as Media or Downloads, and looks after them for you.</p>
+          <p class="small muted">ApexOs sets these up for apps and locations, such as Media or Downloads, and looks after them for you.</p>
         </div>
         <div class="grid" style="--min: 240px">
           <FolderCard v-for="f in system" :key="f.dataset" :folder="f" />

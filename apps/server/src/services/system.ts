@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { HardwareScan, NetworkInfo, ScanCard, ScanCheck, StorageOverview, SystemSummary, TimezoneInfo, UpdateInfo } from '@hearth/api-types';
-import type { TrueNasClient } from '@hearth/truenas-client';
+import type { HardwareScan, NetworkInfo, ScanCard, ScanCheck, StorageOverview, SystemSummary, TimezoneInfo, UpdateInfo } from '@apexos/api-types';
+import type { TrueNasClient } from '@apexos/truenas-client';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { servernameFormat } from '../lib/validators.ts';
@@ -13,7 +13,7 @@ export const serverNameSchema = z
   .trim()
   .refine(servernameFormat, 'Use 2–15 letters, numbers or dashes, starting with a letter');
 
-/** TrueNAS releases Hearth is tested against: 25.10.x up to (not including) 27. */
+/** TrueNAS releases ApexOs is tested against: 25.10.x up to (not including) 27. */
 export const SUPPORTED_VERSIONS = { min: [25, 10, 0], below: [27, 0, 0] } as const;
 
 function versionParts(v: string): number[] {
@@ -94,7 +94,7 @@ export async function scanHardware(ctx: AppContext, storage?: StorageOverview): 
       id: 'truenas-version',
       severity: 'error',
       title: 'Unsupported TrueNAS version',
-      detail: `This server runs TrueNAS ${system.version}. Hearth supports TrueNAS SCALE 25.10 up to 26.x.`,
+      detail: `This server runs TrueNAS ${system.version}. ApexOs supports TrueNAS SCALE 25.10 up to 26.x.`,
     });
   }
   if (system.memoryBytes < 8 * GiB * 0.95) {
@@ -145,7 +145,7 @@ export async function scanHardware(ctx: AppContext, storage?: StorageOverview): 
         id: `pool-scrub-${pool.name}`,
         severity: 'warning',
         title: `Pool ${pool.displayName} has no scheduled health check`,
-        detail: 'Regular checks (scrubs) find and repair silent damage. Hearth schedules one when you finish setup.',
+        detail: 'Regular checks (scrubs) find and repair silent damage. ApexOs schedules one when you finish setup.',
       });
     }
   }
@@ -302,7 +302,7 @@ export async function getUpdateInfo(ctx: AppContext, storage?: StorageOverview):
   return {
     currentVersion: version,
     supported,
-    supportNote: supported ? null : 'Hearth supports TrueNAS SCALE 25.10 up to 26.x. Some features may not work.',
+    supportNote: supported ? null : 'ApexOs supports TrueNAS SCALE 25.10 up to 26.x. Some features may not work.',
     available: next ? { version: next.version, releaseNotesUrl: next.release_notes_url } : null,
     riskWarning: atRisk ? `Pool ${atRisk.displayName} is ${atRisk.health}. Restarting now could make things worse.` : null,
     error: status.code === 'ERROR' ? (status.error?.reason ?? 'Could not check for updates') : null,
@@ -323,5 +323,5 @@ export async function assertRiskAcknowledged(ctx: AppContext, acknowledged: bool
 export async function power(ctx: AppContext, action: 'restart' | 'shutdown'): Promise<void> {
   const method = action === 'restart' ? 'system.reboot' : 'system.shutdown';
   // A job; the server goes away before it "finishes", so don't wait for it.
-  await ctx.truenas.client().call(method, [`Requested from Hearth by the administrator`, { delay: 3 }]);
+  await ctx.truenas.client().call(method, [`Requested from ApexOs by the administrator`, { delay: 3 }]);
 }

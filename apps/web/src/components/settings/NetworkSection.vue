@@ -2,7 +2,7 @@
 /** Read-only view of the server's network setup. */
 import { onMounted, ref } from 'vue';
 import { Cable } from 'lucide-vue-next';
-import type { NetworkInfo } from '@hearth/api-types';
+import type { NetworkInfo } from '@apexos/api-types';
 import PageState from '../PageState.vue';
 import { api } from '../../lib/api.ts';
 import { onServerChange } from '../../lib/events.ts';
@@ -37,7 +37,7 @@ function speed(mbps: number | null): string {
 <template>
   <section class="card stack" aria-labelledby="ns-h">
     <h2 id="ns-h">Network</h2>
-    <p class="muted small">How your server is connected. Changing these settings isn’t available in Hearth yet; you can do it in the TrueNAS UI.</p>
+    <p class="muted small">How your server is connected. Changing these settings isn’t available in ApexOs yet; you can do it in the TrueNAS UI.</p>
     <PageState :loading="loading" :error="error" @retry="retry">
       <template v-if="info">
         <dl class="facts">

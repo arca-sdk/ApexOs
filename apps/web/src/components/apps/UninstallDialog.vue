@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { FolderLock } from 'lucide-vue-next';
-import type { InstalledApp, LocationInfo } from '@hearth/api-types';
+import type { InstalledApp, LocationInfo } from '@apexos/api-types';
 import { api } from '../../lib/api.ts';
 import Modal from '../Modal.vue';
 

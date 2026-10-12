@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { TrueNasClient, TrueNasError, type Job } from '@hearth/truenas-client';
+import { TrueNasClient, TrueNasError, type Job } from '@apexos/truenas-client';
 import { CallError, RpcServer, validationError } from '../src/rpc.ts';
 
 let server: RpcServer;

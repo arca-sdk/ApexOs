@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { AppState } from '@hearth/api-types';
+import type { AppState } from '@apexos/api-types';
 
 const props = defineProps<{ state: AppState }>();
 const view = computed(

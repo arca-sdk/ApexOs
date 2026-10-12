@@ -4,7 +4,7 @@
  * rebuilding the server asks for an explicit risk acknowledgement (RISK_NOT_ACKNOWLEDGED).
  */
 import { computed, ref } from 'vue';
-import type { Drive, Pool, TaskStarted } from '@hearth/api-types';
+import type { Drive, Pool, TaskStarted } from '@apexos/api-types';
 import Modal from '../Modal.vue';
 import DriveChoice from './DriveChoice.vue';
 import DriveRow from './DriveRow.vue';

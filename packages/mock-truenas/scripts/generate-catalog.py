@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Regenerates src/data/catalog.json for @hearth/mock-truenas from the public TrueNAS apps catalog
+Regenerates src/data/catalog.json for @apexos/mock-truenas from the public TrueNAS apps catalog
 (https://github.com/truenas/apps, LGPL-3.0).
 
 Usage:  python3 -I scripts/generate-catalog.py [REF] [--out PATH]

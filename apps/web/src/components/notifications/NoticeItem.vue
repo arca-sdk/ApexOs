@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { CircleAlert, Info, OctagonAlert, TriangleAlert, X } from 'lucide-vue-next';
-import type { Notice } from '@hearth/api-types';
+import type { Notice } from '@apexos/api-types';
 import { formatRelative } from '../../lib/format.ts';
 import { clock } from './store.ts';
 

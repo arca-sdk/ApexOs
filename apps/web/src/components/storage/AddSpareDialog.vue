@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** Assign an unused drive as a hot spare for a protected pool. */
 import { computed, ref } from 'vue';
-import type { Drive, Pool, TaskStarted } from '@hearth/api-types';
+import type { Drive, Pool, TaskStarted } from '@apexos/api-types';
 import Modal from '../Modal.vue';
 import DriveChoice from './DriveChoice.vue';
 import TaskProgress from './TaskProgress.vue';

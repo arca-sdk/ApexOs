@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Folder as FolderIcon, FolderCog, Globe, History, Lock } from 'lucide-vue-next';
-import type { Folder } from '@hearth/api-types';
+import type { Folder } from '@apexos/api-types';
 import { formatBytes } from '../../lib/format.ts';
 
 const props = defineProps<{ folder: Folder }>();

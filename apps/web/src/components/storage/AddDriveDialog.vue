@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** Grow a RAIDZ pool by one drive (RAIDZ expansion). Only offered when `layout.expandable`. */
 import { computed, ref } from 'vue';
-import type { Drive, Pool, TaskStarted } from '@hearth/api-types';
+import type { Drive, Pool, TaskStarted } from '@apexos/api-types';
 import Modal from '../Modal.vue';
 import DriveChoice from './DriveChoice.vue';
 import TaskProgress from './TaskProgress.vue';

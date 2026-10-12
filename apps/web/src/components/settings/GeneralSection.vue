@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** Server name (existing behaviour) and the server's time zone. */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import type { TimezoneInfo } from '@hearth/api-types';
+import type { TimezoneInfo } from '@apexos/api-types';
 import { ApiError, api, refreshStatus } from '../../lib/api.ts';
 import { onServerChange } from '../../lib/events.ts';
 

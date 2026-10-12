@@ -1,5 +1,5 @@
 {
-  "name": "@hearth/mock-truenas",
+  "name": "@apexos/mock-truenas",
   "private": true,
   "version": "0.1.0",
   "license": "GPL-3.0-or-later",
@@ -16,7 +16,7 @@
     "ws": "8.22.0"
   },
   "devDependencies": {
-    "@hearth/truenas-client": "workspace:*",
+    "@apexos/truenas-client": "workspace:*",
     "@types/node": "26.6.5",
     "@types/ws": "8.18.2",
     "typescript": "6.0.3",

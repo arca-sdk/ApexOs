@@ -8,7 +8,7 @@ describe('datasets, SMB shares and ACLs', () => {
     const { client } = await setup();
     await createPool(client, 'tank', 'MIRROR', ['sdb', 'sdc']);
     const ds = await client.call<Any>('pool.dataset.create', [
-      { name: 'tank/Family', share_type: 'SMB', quota: 100 * GiB, comments: 'Family files', user_properties: [{ key: 'hearth:folder', value: 'family' }] },
+      { name: 'tank/Family', share_type: 'SMB', quota: 100 * GiB, comments: 'Family files', user_properties: [{ key: 'apexos:folder', value: 'family' }] },
     ]);
     expect(ds).toMatchObject({ id: 'tank/Family', name: 'tank/Family', pool: 'tank', type: 'FILESYSTEM', mountpoint: '/mnt/tank/Family', encrypted: false, locked: false });
     expect(ds.casesensitivity).toMatchObject({ value: 'INSENSITIVE', source: 'LOCAL' });
@@ -19,7 +19,7 @@ describe('datasets, SMB shares and ACLs', () => {
     expect(ds.refquota).toMatchObject({ parsed: null, rawvalue: '0', value: null, source: 'DEFAULT' });
     expect(ds.used.parsed).toBeGreaterThan(0);
     expect(ds.available.parsed).toBeLessThanOrEqual(100 * GiB);
-    expect(ds.user_properties['hearth:folder']).toMatchObject({ value: 'family', rawvalue: 'family', source: 'LOCAL' });
+    expect(ds.user_properties['apexos:folder']).toMatchObject({ value: 'family', rawvalue: 'family', source: 'LOCAL' });
     expect(ds.comments.value).toBe('Family files');
 
     const dup = await failure(client.call('pool.dataset.create', [{ name: 'tank/Family' }]));
@@ -35,11 +35,11 @@ describe('datasets, SMB shares and ACLs', () => {
 
     const updated = await client.call<Any>('pool.dataset.update', [
       'tank/Family',
-      { quota: 0, user_properties_update: [{ key: 'hearth:folder', remove: true }, { key: 'hearth:owner', value: 'alice' }] },
+      { quota: 0, user_properties_update: [{ key: 'apexos:folder', remove: true }, { key: 'apexos:owner', value: 'alice' }] },
     ]);
     expect(updated.quota.parsed).toBeNull();
-    expect(updated.user_properties).toEqual({ 'hearth:owner': expect.objectContaining({ value: 'alice' }) });
-    const filtered = await client.call<Any[]>('pool.dataset.query', [[['user_properties.hearth:owner.value', '=', 'alice']]]);
+    expect(updated.user_properties).toEqual({ 'apexos:owner': expect.objectContaining({ value: 'alice' }) });
+    const filtered = await client.call<Any[]>('pool.dataset.query', [[['user_properties.apexos:owner.value', '=', 'alice']]]);
     expect(filtered.map((d) => d.id)).toEqual(['tank/Family']);
     const byPool = await client.call<Any[]>('pool.dataset.query', [[['pool', '=', 'tank']], { select: ['id', 'used.parsed'], order_by: ['id'] }]);
     expect(byPool[0]).toEqual({ id: 'tank', used: { parsed: expect.any(Number) } });

@@ -1,5 +1,5 @@
 import { afterEach } from 'vitest';
-import { TrueNasClient, TrueNasError, type TrueNasAuth } from '@hearth/truenas-client';
+import { TrueNasClient, TrueNasError, type TrueNasAuth } from '@apexos/truenas-client';
 import { startMockTrueNas, type MockOptions, type MockTrueNas } from '../src/index.ts';
 
 const open: Array<{ close(): Promise<void> }> = [];

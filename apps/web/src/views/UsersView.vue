@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ChevronRight, UserPlus } from 'lucide-vue-next';
-import type { Folder, FoldersResponse, ShareUser } from '@hearth/api-types';
+import type { Folder, FoldersResponse, ShareUser } from '@apexos/api-types';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import PageState from '../components/PageState.vue';
 import UserForm from '../components/users/UserForm.vue';

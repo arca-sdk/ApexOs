@@ -17,5 +17,5 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm --filter @hearth/server validate-scripts
+      - run: pnpm --filter @apexos/server validate-scripts
       - run: pnpm build

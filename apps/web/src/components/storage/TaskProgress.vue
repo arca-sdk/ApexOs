@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** Inline progress for a running server task (title, current message and a meter). */
-import type { Task } from '@hearth/api-types';
+import type { Task } from '@apexos/api-types';
 
 defineProps<{ task: Task; label?: string }>();
 </script>

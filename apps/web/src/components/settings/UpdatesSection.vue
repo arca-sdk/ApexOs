@@ -2,7 +2,7 @@
 /** TrueNAS version, support status and updates (with progress from the server task). */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { CircleCheck, CircleX, ExternalLink, RefreshCw } from 'lucide-vue-next';
-import type { TaskStarted, UpdateInfo } from '@hearth/api-types';
+import type { TaskStarted, UpdateInfo } from '@apexos/api-types';
 import ConfirmDialog from '../ConfirmDialog.vue';
 import PageState from '../PageState.vue';
 import { ApiError, api } from '../../lib/api.ts';
@@ -104,11 +104,11 @@ function stepIcon(status: string) {
       <div v-if="info" class="stack" style="--gap: 14px">
         <div class="row wrap" style="--gap: 10px">
           <span>TrueNAS <strong>{{ info.currentVersion }}</strong></span>
-          <span v-if="info.supported" class="badge ok"><CircleCheck :size="12" /> Supported by Hearth</span>
+          <span v-if="info.supported" class="badge ok"><CircleCheck :size="12" /> Supported by ApexOs</span>
           <span v-else class="badge warn"><CircleX :size="12" /> Not supported</span>
         </div>
         <p v-if="!info.supported" class="callout warn">
-          {{ info.supportNote ?? 'Hearth hasn’t been tested with this TrueNAS version. Some things may not work.' }}
+          {{ info.supportNote ?? 'ApexOs hasn’t been tested with this TrueNAS version. Some things may not work.' }}
         </p>
 
         <!-- progress of a running (or just finished) update -->
@@ -131,7 +131,7 @@ function stepIcon(status: string) {
             </ol>
             <p class="small muted">You can leave this page. The server restarts by itself when the update is installed.</p>
           </template>
-          <p v-else-if="task.status === 'success'" class="small">The update is installed and your server is restarting. Hearth reconnects when it’s back, usually within a few minutes.</p>
+          <p v-else-if="task.status === 'success'" class="small">The update is installed and your server is restarting. ApexOs reconnects when it’s back, usually within a few minutes.</p>
           <p v-else class="small" style="color: var(--err)">{{ task.error ?? 'The update failed.' }}</p>
         </div>
 

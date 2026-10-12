@@ -64,9 +64,9 @@ describe('authentication', () => {
     const ok = await raw.call('auth.login_ex', [{ mechanism: 'PASSWORD_PLAIN', username: 'truenas_admin', password: 'demo-password' }]);
     expect(ok.result).toMatchObject({ response_type: 'SUCCESS', authenticator: 'LEVEL_1', user_info: { pw_name: 'truenas_admin', pw_uid: 950 } });
 
-    const created = (await raw.call('api_key.create', [{ name: 'hearth-server', username: 'truenas_admin', expires_at: null }])).result;
+    const created = (await raw.call('api_key.create', [{ name: 'apexos-server', username: 'truenas_admin', expires_at: null }])).result;
     expect(created.key).toMatch(/^\d+-[A-Za-z0-9]{64}$/);
-    expect(created).toMatchObject({ name: 'hearth-server', username: 'truenas_admin', revoked: false, expires_at: null });
+    expect(created).toMatchObject({ name: 'apexos-server', username: 'truenas_admin', revoked: false, expires_at: null });
     expect(created.created_at).toHaveProperty('$date');
     raw.close();
 
@@ -79,7 +79,7 @@ describe('authentication', () => {
     const wrongUser = await viaKey.call<Any>('auth.login_ex', [{ mechanism: 'API_KEY_PLAIN', username: 'root', api_key: created.key }]);
     expect(wrongUser.response_type).toBe('AUTH_ERR');
 
-    const keys = await viaKey.call<Any[]>('api_key.query', [[['name', '=', 'hearth-server']]]);
+    const keys = await viaKey.call<Any[]>('api_key.query', [[['name', '=', 'apexos-server']]]);
     expect(keys).toHaveLength(1);
     expect(keys[0]).not.toHaveProperty('key');
   });

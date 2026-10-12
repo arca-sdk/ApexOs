@@ -1,5 +1,5 @@
 import { computed, reactive, ref } from 'vue';
-import type { Notice, Task } from '@hearth/api-types';
+import type { Notice, Task } from '@apexos/api-types';
 import { ApiError, api } from '../../lib/api.ts';
 import { live } from '../../lib/events.ts';
 

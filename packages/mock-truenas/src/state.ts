@@ -726,7 +726,7 @@ export function freshState(opts: SeedOptions): MockState {
     apiKeys: [
       {
         id: 1,
-        name: 'hearth',
+        name: 'apexos',
         username: opts.adminUsername,
         key: opts.apiKey,
         created_at: now - 1000 * 60 * 60,

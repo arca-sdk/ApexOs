@@ -2,7 +2,7 @@
 /** Live progress (or last result) of a pool check, rebuild or expansion, from `pool.scan`. */
 import { computed } from 'vue';
 import { CircleAlert, CircleCheck } from 'lucide-vue-next';
-import type { PoolScan } from '@hearth/api-types';
+import type { PoolScan } from '@apexos/api-types';
 import { formatDuration } from '../../lib/format.ts';
 
 const props = defineProps<{ scan: PoolScan | null; compact?: boolean }>();

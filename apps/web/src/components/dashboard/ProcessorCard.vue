@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Cpu, Thermometer } from 'lucide-vue-next';
-import type { SystemSummary } from '@hearth/api-types';
+import type { SystemSummary } from '@apexos/api-types';
 import { formatPercent, formatTemperature } from '../../lib/format.ts';
 import Sparkline from '../Sparkline.vue';
 import { latest, sampleTimes, seriesOf, temperatureTone } from './live.ts';

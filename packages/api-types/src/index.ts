@@ -1,9 +1,9 @@
 /**
- * HTTP API contract between the Hearth server (`apps/server`) and web UI (`apps/web`).
+ * HTTP API contract between the ApexOs server (`apps/server`) and web UI (`apps/web`).
  * All routes live under `/api`. Errors are `{ error: { code, message, fields? } }`.
  * Sizes are bytes, times are ISO-8601 strings, temperatures are °C.
  */
-import type { LocationPreferenceId } from '@hearth/shared/eshtek/preferences';
+import type { LocationPreferenceId } from '@apexos/shared/eshtek/preferences';
 
 export type { LocationPreferenceId };
 
@@ -124,7 +124,7 @@ export interface NetworkInfo {
 /** GET /api/system/update */
 export interface UpdateInfo {
   currentVersion: string;
-  /** Whether Hearth supports the installed TrueNAS version. */
+  /** Whether ApexOs supports the installed TrueNAS version. */
   supported: boolean;
   supportNote: string | null;
   available: { version: string; releaseNotesUrl: string | null } | null;
@@ -378,7 +378,7 @@ export interface Folder {
   quotaBytes: number | null;
   usedBytes: number;
   timeMachine: boolean;
-  /** Managed by Hearth for apps/locations (e.g. Media, Downloads). */
+  /** Managed by ApexOs for apps/locations (e.g. Media, Downloads). */
   system: boolean;
   usedBy: FolderUse[];
   shared: boolean;
@@ -439,7 +439,7 @@ export interface LocationInfo {
   created: boolean;
   /** Apps that use this location; while non-empty the location cannot change. */
   usedBy: FolderUse[];
-  /** Where Hearth would create it by default. */
+  /** Where ApexOs would create it by default. */
   suggestedPath: string | null;
 }
 
@@ -572,7 +572,7 @@ export type NoticeLevel = 'info' | 'warning' | 'error' | 'critical';
 
 export interface Notice {
   id: string;
-  source: 'truenas' | 'hearth';
+  source: 'truenas' | 'apexos';
   level: NoticeLevel;
   title: string;
   message: string;

@@ -5,7 +5,7 @@
  */
 import { computed } from 'vue';
 import { HardDrive, MemoryStick, Usb } from 'lucide-vue-next';
-import type { Drive } from '@hearth/api-types';
+import type { Drive } from '@apexos/api-types';
 import { DRIVE_KIND_LABELS, formatBytes, formatTemperature } from '../../lib/format.ts';
 import { driveTitle } from './drives.ts';
 

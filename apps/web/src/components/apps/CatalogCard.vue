@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CircleCheck } from 'lucide-vue-next';
-import type { CatalogApp } from '@hearth/api-types';
+import type { CatalogApp } from '@apexos/api-types';
 import AppIcon from './AppIcon.vue';
 import TierBadge from './TierBadge.vue';
 import { categoryLabel } from './apps.ts';

@@ -2,7 +2,7 @@ import { request } from 'node:https';
 import { request as httpRequest } from 'node:http';
 import { TrueNasConnectionError } from './client.ts';
 
-/** API version Hearth is written against; it exists on every 25.10.x release and on 26.x. */
+/** API version ApexOs is written against; it exists on every 25.10.x release and on 26.x. */
 export const PREFERRED_API_VERSION = 'v25.10.0';
 
 /** Fetches `GET /api/versions` (no auth needed) from a TrueNAS host. */
@@ -47,7 +47,7 @@ export async function resolveApiUrl(baseUrl: string): Promise<string> {
   }
   const newest = versions.filter((v) => /^v\d+\.\d+/.test(v)).sort(compareApiVersions).at(-1) ?? 'unknown';
   throw new TrueNasConnectionError(
-    `This TrueNAS release (newest API ${newest}) is not supported. Hearth needs TrueNAS SCALE 25.10 or newer.`,
+    `This TrueNAS release (newest API ${newest}) is not supported. ApexOs needs TrueNAS SCALE 25.10 or newer.`,
   );
 }
 

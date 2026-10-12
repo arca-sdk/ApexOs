@@ -3,8 +3,8 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import { z } from 'zod';
-import type { CollectionUpdate } from '@hearth/truenas-client';
-import type { ChangeTopic, MetricsSample } from '@hearth/api-types';
+import type { CollectionUpdate } from '@apexos/truenas-client';
+import type { ChangeTopic, MetricsSample } from '@apexos/api-types';
 import type { Bus } from './lib/bus.ts';
 import type { InstallScript } from './lib/install-script.ts';
 import { SESSION_COOKIE, SESSION_TTL_MS, createSessionToken, hashPassword, readSessionToken, verifyPassword } from './lib/auth.ts';
@@ -52,8 +52,8 @@ const TOPIC_BY_COLLECTION: Record<string, ChangeTopic> = {
 
 export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   const app = Fastify({
-    // Request logs are noisy for a home server; set HEARTH_LOG_LEVEL=info to see them.
-    logger: ctx.logger ? { level: process.env.HEARTH_LOG_LEVEL ?? 'warn' } : false,
+    // Request logs are noisy for a home server; set APEXOS_LOG_LEVEL=info to see them.
+    logger: ctx.logger ? { level: process.env.APEXOS_LOG_LEVEL ?? 'warn' } : false,
     bodyLimit: 1024 * 1024,
   });
   await app.register(cookie);

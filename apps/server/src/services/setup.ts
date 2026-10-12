@@ -1,4 +1,4 @@
-import type { ExistingPoolSummary, ImportablePool, NewPoolSpec, SetupInfo, SetupRequest, SetupReview, StorageOverview } from '@hearth/api-types';
+import type { ExistingPoolSummary, ImportablePool, NewPoolSpec, SetupInfo, SetupRequest, SetupReview, StorageOverview } from '@apexos/api-types';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { estimateLayout } from '../lib/layout.ts';

@@ -1,5 +1,5 @@
 {
-  "name": "@hearth/shared",
+  "name": "@apexos/shared",
   "private": true,
   "version": "0.0.0",
   "description": "Vendored copy of eshtek/hexos-shared (GPL-3.0). See UPSTREAM.md.",

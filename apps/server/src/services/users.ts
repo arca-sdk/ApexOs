@@ -1,15 +1,15 @@
-import type { ShareUser } from '@hearth/api-types';
-import type { TrueNasClient } from '@hearth/truenas-client';
+import type { ShareUser } from '@apexos/api-types';
+import type { TrueNasClient } from '@apexos/truenas-client';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { usernameFormat } from '../lib/validators.ts';
 import type { TnShareAce, TnSmbShare, TnUser } from '../truenas/types.ts';
 
-/** Accounts Hearth creates for its own purposes are never shown as share users. */
-const HIDDEN_PREFIXES = ['hearth_'];
+/** Accounts ApexOs creates for its own purposes are never shown as share users. */
+const HIDDEN_PREFIXES = ['apexos_'];
 
 export interface UserDirectory {
-  /** The TrueNAS account Hearth is connected as (treated as the owner/admin). */
+  /** The TrueNAS account ApexOs is connected as (treated as the owner/admin). */
   adminUid: number | null;
   adminUsername: string | null;
   /** Non-builtin local users, including the admin. */

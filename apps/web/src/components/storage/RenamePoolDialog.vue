@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** Changes a pool's display name (the name on disk never changes, so paths stay the same). */
 import { computed, ref } from 'vue';
-import type { Pool } from '@hearth/api-types';
+import type { Pool } from '@apexos/api-types';
 import Modal from '../Modal.vue';
 import { ApiError, api } from '../../lib/api.ts';
 
@@ -46,7 +46,7 @@ async function save() {
         <input id="pool-display-name" v-model="name" type="text" maxlength="40" autocomplete="off" :aria-invalid="Boolean(fieldError || problem)" />
         <span v-if="fieldError || (problem && name !== pool.displayName)" class="error-text">{{ fieldError ?? problem }}</span>
         <span class="hint">
-          Only changes how the pool is shown in Hearth. On the server it stays <span class="mono">{{ pool.name }}</span>, so folders and apps keep working.
+          Only changes how the pool is shown in ApexOs. On the server it stays <span class="mono">{{ pool.name }}</span>, so folders and apps keep working.
         </span>
       </div>
       <p v-if="error" class="callout err">{{ error }}</p>

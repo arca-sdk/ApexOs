@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ExternalLink, Play, Square, Trash2, X } from 'lucide-vue-next';
-import type { InstalledApp } from '@hearth/api-types';
+import type { InstalledApp } from '@apexos/api-types';
 import { metrics } from '../../lib/events.ts';
 import { formatMemory, formatPercent } from '../../lib/format.ts';
 import AppIcon from './AppIcon.vue';

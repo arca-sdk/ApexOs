@@ -1,5 +1,5 @@
-import type { MetricsSample } from '@hearth/api-types';
-import type { CollectionUpdate } from '@hearth/truenas-client';
+import type { MetricsSample } from '@apexos/api-types';
+import type { CollectionUpdate } from '@apexos/truenas-client';
 import type { AppContext } from '../app.ts';
 import type { TnAppStats, TnRealtime } from '../truenas/types.ts';
 

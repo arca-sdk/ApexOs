@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { PoolHealth } from '@hearth/api-types';
+import type { PoolHealth } from '@apexos/api-types';
 
 const props = defineProps<{ health: PoolHealth }>();
 const view = computed(

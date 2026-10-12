@@ -1,6 +1,6 @@
 /**
- * @hearth/mock-truenas: an in-memory, stateful simulation of the TrueNAS SCALE 25.10 middleware
- * JSON-RPC 2.0 websocket API, for integration tests and Hearth's demo mode.
+ * @apexos/mock-truenas: an in-memory, stateful simulation of the TrueNAS SCALE 25.10 middleware
+ * JSON-RPC 2.0 websocket API, for integration tests and ApexOs's demo mode.
  */
 import { registerAlerts, syncAllAlerts, syncPoolAlerts } from './alerts.ts';
 import { Mock, type MockConfig } from './context.ts';
@@ -216,7 +216,7 @@ function ensureApiKey(mock: Mock): void {
   const admin = state.users.find((u) => u.username === config.adminUsername) ? config.adminUsername : 'truenas_admin';
   state.apiKeys.push({
     id: state.nextIds.apiKey++,
-    name: `hearth-${state.nextIds.apiKey}`,
+    name: `apexos-${state.nextIds.apiKey}`,
     username: admin,
     key: config.apiKey,
     created_at: Date.now(),

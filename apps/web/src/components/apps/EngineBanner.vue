@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** Explains why apps can't run: no apps pool chosen, or the TrueNAS app engine (Docker) isn't running. */
 import { computed } from 'vue';
-import type { AppsResponse } from '@hearth/api-types';
+import type { AppsResponse } from '@apexos/api-types';
 
 const props = defineProps<{ engine: AppsResponse['engine'] }>();
 
@@ -24,7 +24,7 @@ const view = computed(() => {
     case 'STOPPING':
       return { cls: '', title: 'The app engine is stopping', text: 'Apps are being shut down.', link: null };
     case 'UNKNOWN':
-      return { cls: 'warn', title: "Couldn't check the app engine", text: 'Hearth could not ask TrueNAS whether apps are running. Try again in a moment.', link: null };
+      return { cls: 'warn', title: "Couldn't check the app engine", text: 'ApexOs could not ask TrueNAS whether apps are running. Try again in a moment.', link: null };
     default:
       return {
         cls: 'err',

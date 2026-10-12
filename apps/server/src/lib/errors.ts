@@ -1,4 +1,4 @@
-import { TrueNasConnectionError, TrueNasError } from '@hearth/truenas-client';
+import { TrueNasConnectionError, TrueNasError } from '@apexos/truenas-client';
 import { ZodError } from 'zod';
 
 /** An error whose message is safe and useful to show to the user. */

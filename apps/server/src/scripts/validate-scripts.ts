@@ -1,4 +1,4 @@
-/** Validates every curated install script: `pnpm --filter @hearth/server validate-scripts`. */
+/** Validates every curated install script: `pnpm --filter @apexos/server validate-scripts`. */
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expandValue, loadScripts, resolveAnswers, type MacroContext } from '../lib/install-script.ts';

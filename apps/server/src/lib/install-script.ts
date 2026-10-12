@@ -1,8 +1,8 @@
 import { randomInt } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { InstallQuestion, LocationPreferenceId } from '@hearth/api-types';
-import { LocationPreferenceId as L } from '@hearth/shared/eshtek/preferences';
+import type { InstallQuestion, LocationPreferenceId } from '@apexos/api-types';
+import { LocationPreferenceId as L } from '@apexos/shared/eshtek/preferences';
 
 /** Install-script format v4 (see docs/install-scripts.md). */
 export interface InstallScript {

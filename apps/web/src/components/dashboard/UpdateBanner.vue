@@ -1,7 +1,7 @@
 <script setup lang="ts">
-/** Pinned notice about TrueNAS itself: an available update, or a version Hearth doesn't support. */
+/** Pinned notice about TrueNAS itself: an available update, or a version ApexOs doesn't support. */
 import { ArrowRight, Download, TriangleAlert } from 'lucide-vue-next';
-import type { UpdateInfo } from '@hearth/api-types';
+import type { UpdateInfo } from '@apexos/api-types';
 
 defineProps<{ update: UpdateInfo }>();
 </script>

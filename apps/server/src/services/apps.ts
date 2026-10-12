@@ -8,8 +8,8 @@ import type {
   InstalledApp,
   InstallRequest,
   LocationPreferenceId,
-} from '@hearth/api-types';
-import type { TrueNasClient } from '@hearth/truenas-client';
+} from '@apexos/api-types';
+import type { TrueNasClient } from '@apexos/truenas-client';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { expandString, expandValue, parseSpec, presentQuestions, resolveAnswers, ScriptError, type InstallScript, type MacroContext } from '../lib/install-script.ts';
@@ -343,7 +343,7 @@ async function snapshotBeforeUpgrade(ctx: AppContext, name: string): Promise<voi
   const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
   for (const dir of record.directories.filter((d) => d.snapshotId)) {
     if (!(await datasetExists(client, dir.dataset))) continue;
-    const prefix = `hearth-app-${name}-${dir.snapshotId}-`;
+    const prefix = `apexos-app-${name}-${dir.snapshotId}-`;
     await client.call('pool.snapshot.create', [{ dataset: dir.dataset, name: `${prefix}${stamp}` }]);
     const snaps = await client.call<{ id: string; snapshot_name: string }[]>('pool.snapshot.query', [[['dataset', '=', dir.dataset]]]);
     const ours = snaps.filter((s) => s.snapshot_name.startsWith(prefix)).sort((a, b) => b.snapshot_name.localeCompare(a.snapshot_name));

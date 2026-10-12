@@ -29,7 +29,7 @@ async function submit() {
 </script>
 
 <template>
-  <OnboardingFrame title="Welcome to Hearth" subtitle="Create the account you'll use to manage your home server.">
+  <OnboardingFrame title="Welcome to ApexOs" subtitle="Create the account you'll use to manage your home server.">
     <form class="stack" @submit.prevent="submit">
       <div class="field">
         <label for="u">Username</label>

@@ -2,7 +2,7 @@
 /** One pool on the Storage page: capacity ring, protection, live progress, health and actions. */
 import { computed } from 'vue';
 import { HardDrive, Layers, LifeBuoy, Pencil, Plus, ScanSearch, Shield, ShieldAlert, ShieldCheck, Trash2, TrendingUp } from 'lucide-vue-next';
-import type { Pool, Task } from '@hearth/api-types';
+import type { Pool, Task } from '@apexos/api-types';
 import CapacityRing from '../CapacityRing.vue';
 import HealthBadge from '../HealthBadge.vue';
 import MoreMenu, { type MenuItem } from './MoreMenu.vue';

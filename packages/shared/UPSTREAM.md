@@ -11,14 +11,14 @@ GNU General Public License v3.0 (see `LICENSE` in this directory).
 
 Removed from the vendored copy: `.github/`, `.vscode/`, `package-lock.json`,
 `ts-to-zod.config.js`, and the upstream `package.json` (replaced with a workspace manifest).
-No source files were modified. Hearth-specific code lives in the other workspace packages.
+No source files were modified. ApexOs-specific code lives in the other workspace packages.
 To update, replace the contents of this directory with a newer upstream checkout and
 update the commit hash above.
 
-Hearth additions (new files only): `shims.d.ts` declares the Nuxt auto-imported `useI18n`
+ApexOs additions (new files only): `shims.d.ts` declares the Nuxt auto-imported `useI18n`
 global so the upstream types compile outside a Nuxt app.
 
 Consumers should import types and enums from `eshtek/server`, `eshtek/apps`,
 `eshtek/preferences` and `truenas/webui/**`. `eshtek/common.ts` depends on browser globals and
-does not pass strict type checking; the few helpers Hearth needs from it are re-implemented in
+does not pass strict type checking; the few helpers ApexOs needs from it are re-implemented in
 `apps/server/src/lib/validators.ts` with attribution.

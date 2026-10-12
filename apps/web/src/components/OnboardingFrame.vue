@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Flame } from 'lucide-vue-next';
+import { Mountain } from 'lucide-vue-next';
 
 defineProps<{ title: string; subtitle?: string; width?: string }>();
 </script>
@@ -7,7 +7,7 @@ defineProps<{ title: string; subtitle?: string; width?: string }>();
 <template>
   <div class="frame">
     <div class="inner" :style="{ width: `min(${width ?? '440px'}, 100%)` }">
-      <div class="row brand"><Flame :size="26" style="color: var(--accent)" /> <strong>Hearth</strong></div>
+      <div class="row brand"><Mountain :size="26" style="color: var(--accent)" /> <strong>ApexOs</strong></div>
       <div class="card stack" style="--gap: 20px; padding: 28px">
         <div class="stack" style="--gap: 6px">
           <h1>{{ title }}</h1>

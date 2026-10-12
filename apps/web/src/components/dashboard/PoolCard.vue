@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Pool } from '@hearth/api-types';
+import type { Pool } from '@apexos/api-types';
 import { formatBytes, toleranceText } from '../../lib/format.ts';
 import CapacityRing from '../CapacityRing.vue';
 import HealthBadge from '../HealthBadge.vue';

@@ -1,5 +1,5 @@
-import type { FolderUse, LocationGroup, LocationInfo, LocationPreferenceId, Pool } from '@hearth/api-types';
-import { LocationPreferenceId as L } from '@hearth/shared/eshtek/preferences';
+import type { FolderUse, LocationGroup, LocationInfo, LocationPreferenceId, Pool } from '@apexos/api-types';
+import { LocationPreferenceId as L } from '@apexos/shared/eshtek/preferences';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import type { TnDataset } from '../truenas/types.ts';

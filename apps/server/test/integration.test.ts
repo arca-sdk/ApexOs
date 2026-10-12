@@ -1,5 +1,5 @@
 /**
- * End-to-end tests: the real Hearth HTTP API against the simulated TrueNAS middleware.
+ * End-to-end tests: the real ApexOs HTTP API against the simulated TrueNAS middleware.
  */
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -7,8 +7,8 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import type { AppsResponse, CatalogAppDetail, CatalogResponse, FoldersResponse, PoolPlan, SetupInfo, SetupReview, ShareUser, StorageOverview, Task } from '@hearth/api-types';
-import { startMockTrueNas, type MockTrueNas } from '@hearth/mock-truenas';
+import type { AppsResponse, CatalogAppDetail, CatalogResponse, FoldersResponse, PoolPlan, SetupInfo, SetupReview, ShareUser, StorageOverview, Task } from '@apexos/api-types';
+import { startMockTrueNas, type MockTrueNas } from '@apexos/mock-truenas';
 import { buildApp, type AppContext } from '../src/app.ts';
 import { Bus } from '../src/lib/bus.ts';
 import { loadScripts } from '../src/lib/install-script.ts';
@@ -50,7 +50,7 @@ async function finished(started: { task: Task }): Promise<Task> {
 
 beforeAll(async () => {
   mock = await startMockTrueNas({ jobDelayMs: 0, apiKey: 'test-key' });
-  dataDir = await mkdtemp(join(tmpdir(), 'hearth-test-'));
+  dataDir = await mkdtemp(join(tmpdir(), 'apexos-test-'));
   const store = new StateStore(dataDir);
   await store.load();
   const truenas = new TrueNasManager();
@@ -67,7 +67,7 @@ afterAll(async () => {
   if (dataDir) await rm(dataDir, { recursive: true, force: true });
 });
 
-describe('Hearth against a fresh simulated TrueNAS', () => {
+describe('ApexOs against a fresh simulated TrueNAS', () => {
   it('requires an account, then signs in', async () => {
     expect((await call('GET', '/api/storage')).status).toBe(401);
     const res = await app.inject({ method: 'POST', url: '/api/auth/setup', payload: { username: 'owner', password: 'correct-horse' } });
@@ -235,6 +235,6 @@ describe('Hearth against a fresh simulated TrueNAS', () => {
 
   it('reports notifications for finished tasks', async () => {
     const { notices } = await ok<{ notices: { title: string; source: string }[] }>('GET', '/api/notifications');
-    expect(notices.some((n) => n.source === 'hearth' && n.title === 'Your server is ready')).toBe(true);
+    expect(notices.some((n) => n.source === 'apexos' && n.title === 'Your server is ready')).toBe(true);
   });
 });

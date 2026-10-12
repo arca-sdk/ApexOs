@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** Create or edit a network-share user (username + password). */
 import { computed, reactive, ref } from 'vue';
-import type { ShareUser } from '@hearth/api-types';
+import type { ShareUser } from '@apexos/api-types';
 import Modal from '../Modal.vue';
 import PasswordInput from './PasswordInput.vue';
 import { ApiError, api } from '../../lib/api.ts';
@@ -56,7 +56,7 @@ async function submit() {
 <template>
   <Modal :title="editing ? `Edit ${user!.username}` : 'Add a user'" @close="emit('close')">
     <p v-if="!editing" class="small muted">
-      Users can open private folders from other computers. They can’t sign in to Hearth or change anything on the server.
+      Users can open private folders from other computers. They can’t sign in to ApexOs or change anything on the server.
     </p>
     <form id="user-form" class="stack" novalidate autocomplete="off" @submit.prevent="submit">
       <div class="field">

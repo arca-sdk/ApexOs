@@ -1,5 +1,5 @@
 import { reactive } from 'vue';
-import type { InstalledApp, Task, TaskStarted } from '@hearth/api-types';
+import type { InstalledApp, Task, TaskStarted } from '@apexos/api-types';
 import { ApiError, api, runTask } from '../../lib/api.ts';
 import { live } from '../../lib/events.ts';
 

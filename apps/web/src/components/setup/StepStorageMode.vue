@@ -30,7 +30,7 @@ const keptList = computed(() => [...wizard.keptPools.value.map((p) => p.displayN
         :icon="Sparkles"
         title="Recommended"
         badge="Easiest"
-        description="Hearth groups your drives by kind and size and picks a layout for each group. You can still adjust the result."
+        description="ApexOs groups your drives by kind and size and picks a layout for each group. You can still adjust the result."
         :disabled="!free.length"
         :disabled-reason="noDrives"
       />

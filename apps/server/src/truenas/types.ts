@@ -1,6 +1,6 @@
 /**
- * Shapes of the TrueNAS SCALE 25.10 middleware results Hearth reads (API v25.10.0).
- * Only the fields Hearth uses are declared.
+ * Shapes of the TrueNAS SCALE 25.10 middleware results ApexOs reads (API v25.10.0).
+ * Only the fields ApexOs uses are declared.
  */
 
 export interface TnDate {

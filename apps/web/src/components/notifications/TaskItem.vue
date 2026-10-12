@@ -2,7 +2,7 @@
 /** One server task: status, progress and (optionally) its checklist of steps. */
 import { computed, ref, watch } from 'vue';
 import { ChevronDown, ChevronRight, Circle, CircleCheck, CircleMinus, CircleX } from 'lucide-vue-next';
-import type { Task } from '@hearth/api-types';
+import type { Task } from '@apexos/api-types';
 import { formatRelative } from '../../lib/format.ts';
 import { clock } from './store.ts';
 

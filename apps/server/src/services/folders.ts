@@ -1,5 +1,5 @@
-import type { Folder, FolderRequest, FolderUse, FolderUserAccess, FoldersResponse } from '@hearth/api-types';
-import type { TrueNasClient } from '@hearth/truenas-client';
+import type { Folder, FolderRequest, FolderUse, FolderUserAccess, FoldersResponse } from '@apexos/api-types';
+import type { TrueNasClient } from '@apexos/truenas-client';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { foldernameFormat } from '../lib/validators.ts';
@@ -9,12 +9,12 @@ import { LOCATION_DEFS } from './locations.ts';
 import { lanIp } from './system.ts';
 import { readUsers, type UserDirectory } from './users.ts';
 
-/** Names Hearth uses itself; personal folders can't take them. */
+/** Names ApexOs uses itself; personal folders can't take them. */
 export const RESERVED_FOLDER_NAMES = ['Applications', 'ix-apps', 'homes'];
 const EVERYONE_SID = 'S-1-1-0';
 /** BUILTIN\Administrators: the server's administrators always keep full access to private folders. */
 const ADMINISTRATORS_SID = 'S-1-5-32-544';
-export const FOLDER_PROPERTY = 'hearth:folder';
+export const FOLDER_PROPERTY = 'apexos:folder';
 
 /**
  * Filesystem ACL applied to every folder: everyone who may connect can work with everything inside,
@@ -56,7 +56,7 @@ async function readFolderSources(client: TrueNasClient): Promise<FolderSources> 
   return { datasets, shares, acls, dir, pools, ip };
 }
 
-/** Top-level datasets of each pool (`pool/Name`) are folders, except TrueNAS/Hearth internals. */
+/** Top-level datasets of each pool (`pool/Name`) are folders, except TrueNAS/ApexOs internals. */
 function isFolderDataset(ds: TnDataset): boolean {
   const parts = ds.id.split('/');
   if (parts.length !== 2) return false;
@@ -184,7 +184,7 @@ function validateRequest(req: Pick<FolderRequest, 'access' | 'users' | 'timeMach
  * TrueNAS's default "everyone, full access" ACL, so it is created disabled and enabled last.
  */
 async function createShare(client: TrueNasClient, share: Record<string, unknown>, acl: TnShareAce[]): Promise<void> {
-  const created = await client.call<TnSmbShare>('sharing.smb.create', [{ ...share, enabled: false, comment: 'Managed by Hearth' }]);
+  const created = await client.call<TnSmbShare>('sharing.smb.create', [{ ...share, enabled: false, comment: 'Managed by ApexOs' }]);
   await client.call('sharing.smb.setacl', [{ share_name: created.name, share_acl: acl }]);
   await client.call('sharing.smb.update', [created.id, { enabled: true }]);
 }
@@ -203,7 +203,7 @@ export async function ensureSmbService(client: TrueNasClient, opts: { timeMachin
 }
 
 export interface CreateFolderOptions {
-  /** Mark as a Hearth-managed system folder (used for locations). */
+  /** Mark as a ApexOs-managed system folder (used for locations). */
   system?: boolean;
   /** Create the dataset without an SMB share. */
   noShare?: boolean;
@@ -230,7 +230,7 @@ export async function prepareFolder(ctx: AppContext, req: FolderRequest, opts: C
     });
   }
   if (!opts.system && RESERVED_FOLDER_NAMES.some((r) => r.toLowerCase() === name.toLowerCase())) {
-    throw new UserError(`"${name}" is reserved for Hearth.`, 400, 'VALIDATION', { name: 'Reserved name' });
+    throw new UserError(`"${name}" is reserved for ApexOs.`, 400, 'VALIDATION', { name: 'Reserved name' });
   }
   validateRequest(req);
   const quota = validateQuota(req.quotaBytes);
@@ -325,7 +325,7 @@ export async function updateFolder(
       );
       return;
     }
-    // Preserve DENY entries and principals Hearth doesn't manage (e.g. groups or SIDs set in TrueNAS),
+    // Preserve DENY entries and principals ApexOs doesn't manage (e.g. groups or SIDs set in TrueNAS),
     // drop entries for deleted users, and rebuild the allow list.
     const current = src.acls.get(share.name) ?? [];
     const knownUids = new Set(src.dir.users.map((u) => u.uid));

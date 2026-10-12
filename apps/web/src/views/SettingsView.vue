@@ -43,7 +43,7 @@ const groups: { title: string; sections: Section[] }[] = [
     title: 'You',
     sections: [
       { id: 'preferences', label: 'Preferences', hint: 'Temperature unit', icon: SlidersHorizontal, component: PreferencesSection },
-      { id: 'account', label: 'Your account', hint: 'Your Hearth password', icon: User, component: AccountSection },
+      { id: 'account', label: 'Your account', hint: 'Your ApexOs password', icon: User, component: AccountSection },
       { id: 'about', label: 'About', hint: 'License and credits', icon: Info, component: AboutSection },
     ],
   },

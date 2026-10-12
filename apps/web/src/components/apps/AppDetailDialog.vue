@@ -6,7 +6,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { CircleCheck, Code, ExternalLink, Globe, Info } from 'lucide-vue-next';
-import type { CatalogAppDetail, InstallQuestion, InstallRequest, TaskStarted } from '@hearth/api-types';
+import type { CatalogAppDetail, InstallQuestion, InstallRequest, TaskStarted } from '@apexos/api-types';
 import { ApiError, api } from '../../lib/api.ts';
 import { live } from '../../lib/events.ts';
 import Modal from '../Modal.vue';
@@ -190,7 +190,7 @@ onMounted(load);
           <div v-else class="callout small tier-note">
             <Info :size="16" aria-hidden="true" />
             <span>
-              This app comes straight from the TrueNAS catalog. Hearth installs it with its standard settings, so you may need to finish setting
+              This app comes straight from the TrueNAS catalog. ApexOs installs it with its standard settings, so you may need to finish setting
               it up inside the app itself. Its data is kept in the app's own storage, not in your shared folders.
             </span>
           </div>
@@ -203,7 +203,7 @@ onMounted(load);
         <!-- Step 2: settings -->
         <form v-else-if="step === 'settings'" id="install-form" class="stack" novalidate @submit.prevent="install">
           <p v-if="curated" class="muted small">
-            Hearth sets up folders, permissions and ports for you. Check the settings below, or just press Install.
+            ApexOs sets up folders, permissions and ports for you. Check the settings below, or just press Install.
           </p>
           <p v-else class="muted small">This app will be installed with the catalog's standard settings.</p>
 

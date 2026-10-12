@@ -1,13 +1,13 @@
-# @hearth/mock-truenas
+# @apexos/mock-truenas
 
 An in-memory, stateful simulation of the TrueNAS SCALE 25.10 middleware JSON-RPC 2.0 websocket API.
-Hearth uses it for server integration tests and for demo mode, where you can click through the whole
-product without a NAS. It follows the shapes in the Hearth TrueNAS API reference: upper-case enums,
+ApexOs uses it for server integration tests and for demo mode, where you can click through the whole
+product without a NAS. It follows the shapes in the ApexOs TrueNAS API reference: upper-case enums,
 `{"$date": ms}` datetimes, ZFS property objects, legacy job semantics (calls return a job id and
 progress arrives through `core.get_jobs` events), and `collection_update` events.
 
 ```ts
-import { startMockTrueNas } from '@hearth/mock-truenas';
+import { startMockTrueNas } from '@apexos/mock-truenas';
 
 const mock = await startMockTrueNas({ scenario: 'configured', jobDelayMs: 0 });
 // mock.url     -> ws://127.0.0.1:PORT/api/current (/api/v25.10.0 … /api/v25.10.5 work too)
@@ -107,4 +107,4 @@ by default.
 
 ## License
 
-GPL-3.0-or-later, like the rest of Hearth. The bundled catalog metadata keeps its LGPL-3.0 license.
+GPL-3.0-or-later, like the rest of ApexOs. The bundled catalog metadata keeps its LGPL-3.0 license.

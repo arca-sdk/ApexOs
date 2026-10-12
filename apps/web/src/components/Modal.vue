@@ -6,7 +6,7 @@ defineProps<{ title: string; wide?: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 
 /** Open modals, innermost last; only the topmost one reacts to Escape. */
-const stack: symbol[] = ((globalThis as { __hearthModals?: symbol[] }).__hearthModals ??= []);
+const stack: symbol[] = ((globalThis as { __apexosModals?: symbol[] }).__apexosModals ??= []);
 const id = Symbol('modal');
 const dialog = ref<HTMLElement | null>(null);
 let previousFocus: HTMLElement | null = null;

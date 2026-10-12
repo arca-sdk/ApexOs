@@ -1,5 +1,5 @@
 import { reactive } from 'vue';
-import type { StatusResponse, Task, TaskStarted } from '@hearth/api-types';
+import type { StatusResponse, Task, TaskStarted } from '@apexos/api-types';
 
 export class ApiError extends Error {
   constructor(

@@ -2,7 +2,7 @@
 /** Restart / shut down the server, with a risk acknowledgement when a pool is unhealthy. */
 import { computed, onMounted, ref } from 'vue';
 import { Power, RotateCcw } from 'lucide-vue-next';
-import type { PowerRequest, UpdateInfo } from '@hearth/api-types';
+import type { PowerRequest, UpdateInfo } from '@apexos/api-types';
 import ConfirmDialog from '../ConfirmDialog.vue';
 import { ApiError, api } from '../../lib/api.ts';
 import { onServerChange } from '../../lib/events.ts';
@@ -38,12 +38,12 @@ const copy = computed(() =>
   action.value === 'shutdown'
     ? {
         title: 'Shut down the server?',
-        message: 'Everything on the server stops: apps, shared folders and Hearth itself. To turn it back on, press the power button on the server.',
+        message: 'Everything on the server stops: apps, shared folders and ApexOs itself. To turn it back on, press the power button on the server.',
         label: 'Shut down',
       }
     : {
         title: 'Restart the server?',
-        message: 'Apps, shared folders and Hearth itself are unavailable for a few minutes while the server restarts. Everything comes back on its own.',
+        message: 'Apps, shared folders and ApexOs itself are unavailable for a few minutes while the server restarts. Everything comes back on its own.',
         label: 'Restart',
       },
 );

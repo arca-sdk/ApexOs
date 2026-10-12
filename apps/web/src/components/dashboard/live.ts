@@ -1,5 +1,5 @@
 import { computed } from 'vue';
-import type { MetricsSample } from '@hearth/api-types';
+import type { MetricsSample } from '@apexos/api-types';
 import { metrics } from '../../lib/events.ts';
 
 /** Most recent live sample, or null until the first one arrives. */

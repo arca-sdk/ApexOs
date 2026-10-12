@@ -5,7 +5,7 @@
  */
 import { computed, ref } from 'vue';
 import { Archive, Pencil, Plus, ShieldAlert, ShieldCheck, SquarePen, Trash2 } from 'lucide-vue-next';
-import type { LayoutEstimate, NewPoolSpec } from '@hearth/api-types';
+import type { LayoutEstimate, NewPoolSpec } from '@apexos/api-types';
 import Modal from '../Modal.vue';
 import HealthBadge from '../HealthBadge.vue';
 import AddPoolDialog from '../storage/AddPoolDialog.vue';
@@ -84,7 +84,7 @@ const keptCount = computed(() => wizard.keptPools.value.length + wizard.importin
   <div class="stack" style="--gap: 24px">
     <div v-if="state.planLoading" class="card row muted" role="status"><span class="spin" /> Working out the best layout for your drives…</div>
     <div v-else-if="state.planError" class="callout err stack" style="--gap: 8px" role="alert">
-      <span>Hearth couldn’t work out a plan: {{ state.planError }}</span>
+      <span>ApexOs couldn’t work out a plan: {{ state.planError }}</span>
       <div><button class="btn small" @click="wizard.ensurePlan()">Try again</button></div>
     </div>
 

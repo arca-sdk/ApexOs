@@ -6,7 +6,7 @@ import {
   TrueNasConnectionError,
   type CollectionUpdate,
   type TrueNasClientOptions,
-} from '@hearth/truenas-client';
+} from '@apexos/truenas-client';
 
 /**
  * Normalizes user input like `nas.local`, `192.168.1.20:8443` or `https://nas.local/ui` into the
@@ -22,13 +22,13 @@ export function toBaseUrl(host: string): string {
   return `${url.protocol}//${url.host}`;
 }
 
-/** Logs in with the TrueNAS admin password once and creates a dedicated API key for Hearth. */
+/** Logs in with the TrueNAS admin password once and creates a dedicated API key for ApexOs. */
 export async function createApiKeyWithPassword(apiUrl: string, username: string, password: string): Promise<string> {
   const client = new TrueNasClient({ url: apiUrl, auth: { type: 'password', username, password }, reconnect: false, pingIntervalMs: 0 });
   try {
     await client.connect();
     const created = await client.call<{ key: string }>('api_key.create', [
-      { name: `hearth-${new Date().toISOString().slice(0, 10)}-${randomBytes(3).toString('hex')}`, username, expires_at: null },
+      { name: `apexos-${new Date().toISOString().slice(0, 10)}-${randomBytes(3).toString('hex')}`, username, expires_at: null },
     ]);
     return created.key;
   } finally {
@@ -104,7 +104,7 @@ export class TrueNasManager extends EventEmitter {
   }
 
   client(): TrueNasClient {
-    if (!this.current) throw new TrueNasConnectionError('Hearth is not connected to TrueNAS yet');
+    if (!this.current) throw new TrueNasConnectionError('ApexOs is not connected to TrueNAS yet');
     return this.current;
   }
 

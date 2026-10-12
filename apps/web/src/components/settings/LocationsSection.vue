@@ -2,7 +2,7 @@
 /** Locations: which folder apps use for each kind of data. */
 import { computed, onMounted, ref } from 'vue';
 import { Boxes, MapPin } from 'lucide-vue-next';
-import type { Folder, FoldersResponse, LocationInfo } from '@hearth/api-types';
+import type { Folder, FoldersResponse, LocationInfo } from '@apexos/api-types';
 import Modal from '../Modal.vue';
 import PageState from '../PageState.vue';
 import { ApiError, api } from '../../lib/api.ts';
@@ -129,7 +129,7 @@ async function save() {
                 <span v-if="!loc.created" class="badge" style="margin-left: 6px">Created when first needed</span>
               </p>
               <p v-else class="small muted">
-                Not set yet. Hearth creates it{{ loc.suggestedPath ? ` at ${placeLabel(loc.suggestedPath)}` : '' }} the first time an app needs it.
+                Not set yet. ApexOs creates it{{ loc.suggestedPath ? ` at ${placeLabel(loc.suggestedPath)}` : '' }} the first time an app needs it.
               </p>
               <p v-if="loc.usedBy.length" :id="`ls-used-${loc.id}`" class="small row wrap used" style="--gap: 6px">
                 <Boxes :size="14" class="muted" />

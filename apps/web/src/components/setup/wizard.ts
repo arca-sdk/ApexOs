@@ -13,7 +13,7 @@ import type {
   SetupInfo,
   SetupRequest,
   SetupReview,
-} from '@hearth/api-types';
+} from '@apexos/api-types';
 import { ApiError, api } from '../../lib/api.ts';
 import type { PickerDrive } from '../storage/drives.ts';
 

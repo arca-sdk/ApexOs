@@ -170,7 +170,7 @@ onBeforeUnmount(() => returnFocus?.focus?.());
             <ul class="list">
               <li v-for="t in recent" :key="t.id" class="task-card"><TaskItem :task="t" /></li>
             </ul>
-            <p class="small muted">Finished jobs are kept until the Hearth service restarts.</p>
+            <p class="small muted">Finished jobs are kept until the ApexOs service restarts.</p>
           </template>
         </section>
       </aside>

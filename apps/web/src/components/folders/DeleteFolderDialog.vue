@@ -2,7 +2,7 @@
 /** Delete confirmation (type the name), or an explanation when apps/locations still use the folder. */
 import { ref } from 'vue';
 import { Boxes, MapPin } from 'lucide-vue-next';
-import type { Folder, TaskStarted } from '@hearth/api-types';
+import type { Folder, TaskStarted } from '@apexos/api-types';
 import ConfirmDialog from '../ConfirmDialog.vue';
 import Modal from '../Modal.vue';
 import { ApiError, api, runTask } from '../../lib/api.ts';
@@ -36,7 +36,7 @@ async function confirm() {
   <Modal v-if="folder.usedBy.length || inUseMessage" :title="`${folder.name} can’t be deleted yet`" @close="emit('close')">
     <p>
       {{ inUseMessage ?? 'Something still keeps its files here.' }}
-      Deleting the folder now would break it, so Hearth won’t do that.
+      Deleting the folder now would break it, so ApexOs won’t do that.
     </p>
     <ul v-if="folder.usedBy.length" class="uses">
       <li v-for="use in folder.usedBy" :key="`${use.type}-${use.id}`" class="row" style="--gap: 10px">

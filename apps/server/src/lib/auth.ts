@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
 
 const KEY_LENGTH = 64;
-export const SESSION_COOKIE = 'hearth_session';
+export const SESSION_COOKIE = 'apexos_session';
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function hashPassword(password: string): Promise<string> {

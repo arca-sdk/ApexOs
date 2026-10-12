@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { ArrowRight, Boxes, HardDrive, RefreshCw, X } from 'lucide-vue-next';
-import type { DashboardResponse } from '@hearth/api-types';
+import type { DashboardResponse } from '@apexos/api-types';
 import { api, session } from '../lib/api.ts';
 import { onServerChange } from '../lib/events.ts';
 import { formatDuration } from '../lib/format.ts';

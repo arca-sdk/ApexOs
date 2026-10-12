@@ -5,8 +5,8 @@
  */
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { ArrowLeft, Check, Flame } from 'lucide-vue-next';
-import type { SetupInfo, Task, TaskStarted } from '@hearth/api-types';
+import { ArrowLeft, Check, Mountain } from 'lucide-vue-next';
+import type { SetupInfo, Task, TaskStarted } from '@apexos/api-types';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import PageState from '../components/PageState.vue';
 import SetupProgress from '../components/setup/SetupProgress.vue';
@@ -231,7 +231,7 @@ async function finish() {
     finishError.value = e instanceof Error ? e.message : String(e);
     if (e instanceof ApiError && ['SETUP_INVALID', 'PLAN_STALE', 'DRIVE_GONE'].includes(e.code)) {
       // Something changed on the server: look at the drives again (keeping the user's choices) and re-check.
-      finishError.value = `${e.message} Hearth has looked at your drives again; use Edit to adjust the plan.`;
+      finishError.value = `${e.message} ApexOs has looked at your drives again; use Edit to adjust the plan.`;
       await refreshInfo();
       await wizard.loadReview();
     }
@@ -277,7 +277,7 @@ const intro = computed<{ title: string; text: string[] }>(() => {
       return {
         title: 'Health & capabilities',
         text: [
-          'Hearth looked over your hardware. Open a card to see what it checked and what it found.',
+          'ApexOs looked over your hardware. Open a card to see what it checked and what it found.',
           'Anything marked red deserves a fix before you trust this server with your files, but it won’t stop you from continuing.',
         ],
       };
@@ -294,7 +294,7 @@ const intro = computed<{ title: string; text: string[] }>(() => {
         title: 'New storage',
         text: [
           free
-            ? `You have ${free} ${free === 1 ? 'drive' : 'drives'} to build new pools from. Let Hearth suggest a layout, or build the pools yourself.`
+            ? `You have ${free} ${free === 1 ? 'drive' : 'drives'} to build new pools from. Let ApexOs suggest a layout, or build the pools yourself.`
             : 'There are no free drives to build new pools from.',
           'A pool combines drives into one place for your files. With protection, it keeps working when a drive fails.',
         ],
@@ -312,14 +312,14 @@ const intro = computed<{ title: string; text: string[] }>(() => {
         ? {
             title: 'Build your storage',
             text: [
-              'Add pools one at a time: tick the drives, then choose a layout. Hearth shows the usable space and protection as you go.',
+              'Add pools one at a time: tick the drives, then choose a layout. ApexOs shows the usable space and protection as you go.',
               'Nothing is created until you finish setup.',
             ],
           }
         : {
             title: 'Your storage plan',
             text: [
-              'Here’s what Hearth suggests. Drives of different kinds stay in separate pools, and similar sizes are grouped so no space is wasted.',
+              'Here’s what ApexOs suggests. Drives of different kinds stay in separate pools, and similar sizes are grouped so no space is wasted.',
               'Rename, edit or remove pools as you like. Nothing is created until you finish setup.',
             ],
           };
@@ -351,7 +351,7 @@ const keepConsentText = computed(() => {
     <header class="setup-header">
       <div class="header-inner">
         <div class="row brand" style="--gap: 8px">
-          <Flame :size="22" aria-hidden="true" class="flame" />
+          <Mountain :size="22" aria-hidden="true" class="brand-mark" />
           <strong>Server setup</strong>
         </div>
         <ol v-if="phase === 'wizard'" class="step-names" aria-label="Setup steps">
@@ -465,7 +465,7 @@ const keepConsentText = computed(() => {
 .brand {
   font-size: 1.05rem;
 }
-.flame {
+.brand-mark {
   color: var(--accent);
 }
 .step-names {

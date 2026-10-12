@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** What a curated app needs from the server, with a pass/fail mark for each item. */
 import { CircleCheck, CircleX } from 'lucide-vue-next';
-import type { AppRequirementsInfo } from '@hearth/api-types';
+import type { AppRequirementsInfo } from '@apexos/api-types';
 
 defineProps<{ req: AppRequirementsInfo }>();
 </script>
@@ -25,7 +25,7 @@ defineProps<{ req: AppRequirementsInfo }>();
         </li>
       </ul>
       <p v-if="req.locations.some((l) => !l.met)" class="small muted">
-        Hearth needs a storage pool to create these folders on. Create one on the <RouterLink to="/storage">Storage</RouterLink> page.
+        ApexOs needs a storage pool to create these folders on. Create one on the <RouterLink to="/storage">Storage</RouterLink> page.
       </p>
       <p v-else class="small muted">Folders that don't exist yet are created during install.</p>
     </div>

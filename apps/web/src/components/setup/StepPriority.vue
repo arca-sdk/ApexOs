@@ -2,7 +2,7 @@
 /** Step 4a (Recommended): what matters most, space or protection. */
 import { computed, onMounted } from 'vue';
 import { Maximize2, Scale, ShieldCheck } from 'lucide-vue-next';
-import type { PlanPriority } from '@hearth/api-types';
+import type { PlanPriority } from '@apexos/api-types';
 import ChoiceCard from './ChoiceCard.vue';
 import { useWizard } from './wizard.ts';
 

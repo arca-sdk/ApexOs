@@ -1,4 +1,4 @@
-import type { DashboardResponse } from '@hearth/api-types';
+import type { DashboardResponse } from '@apexos/api-types';
 import type { AppContext } from '../app.ts';
 import { listInstalled } from './apps.ts';
 import { listNotices } from './notifications.ts';

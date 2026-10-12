@@ -6,7 +6,7 @@
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { ShieldAlert, ShieldCheck } from 'lucide-vue-next';
-import type { Drive, LayoutEstimate, NewPoolSpec, PoolLayout } from '@hearth/api-types';
+import type { Drive, LayoutEstimate, NewPoolSpec, PoolLayout } from '@apexos/api-types';
 import Modal from '../Modal.vue';
 import DriveRow from './DriveRow.vue';
 import { ApiError, api } from '../../lib/api.ts';

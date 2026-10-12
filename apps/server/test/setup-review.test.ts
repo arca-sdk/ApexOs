@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Drive, Pool, SetupRequest, StorageOverview } from '@hearth/api-types';
+import type { Drive, Pool, SetupRequest, StorageOverview } from '@apexos/api-types';
 import { review } from '../src/services/setup.ts';
 
 const TB = 1000 ** 4;

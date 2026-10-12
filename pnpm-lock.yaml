@@ -174,13 +174,13 @@ importers:
       '@fastify/static':
         specifier: 10.1.6
         version: 10.1.6
-      '@hearth/api-types':
+      '@apexos/api-types':
         specifier: workspace:*
         version: link:../../packages/api-types
-      '@hearth/shared':
+      '@apexos/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@hearth/truenas-client':
+      '@apexos/truenas-client':
         specifier: workspace:*
         version: link:../../packages/truenas-client
       fastify:
@@ -190,7 +190,7 @@ importers:
         specifier: 3.25.76
         version: 3.25.76
     devDependencies:
-      '@hearth/mock-truenas':
+      '@apexos/mock-truenas':
         specifier: workspace:*
         version: link:../../packages/mock-truenas
       '@types/node':
@@ -221,10 +221,10 @@ importers:
         specifier: 5.4.0
         version: 5.4.0(@vue/compiler-sfc@3.5.43)(esbuild@0.28.2)(rolldown@1.2.13)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15))(vue@3.5.43(typescript@6.0.3))
     devDependencies:
-      '@hearth/api-types':
+      '@apexos/api-types':
         specifier: workspace:*
         version: link:../../packages/api-types
-      '@hearth/shared':
+      '@apexos/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@vitejs/plugin-vue':
@@ -242,7 +242,7 @@ importers:
 
   packages/api-types:
     dependencies:
-      '@hearth/shared':
+      '@apexos/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -256,7 +256,7 @@ importers:
         specifier: 8.22.0
         version: 8.22.0
     devDependencies:
-      '@hearth/truenas-client':
+      '@apexos/truenas-client':
         specifier: workspace:*
         version: link:../truenas-client
       '@types/node':

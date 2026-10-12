@@ -54,7 +54,7 @@ install on TrueNAS SCALE 25.10.
   output would add one.
 - **Shared libraries mount the location root.** Movies, Shows, Music, Videos, Downloads and
   Documents are mounted as `$LOCATION(X)` itself. They are not listed in
-  `ensure_directories_exists`, because location roots are created by Hearth and the format
+  `ensure_directories_exists`, because location roots are created by ApexOs and the format
   forbids scripts from creating them. App-private folders always use `$LOCATION(Id)/<app>/<sub>`
   and are listed in `ensure_directories_exists`.
 - **Snapshots** (`snapshot.id`) are taken on config and database folders only. Large user-data
@@ -137,7 +137,7 @@ install on TrueNAS SCALE 25.10.
   match without remote path mappings. Hardlinks or atomic moves into Movies/Shows will not work,
   because they are separate datasets; the *arr apps fall back to copying.
 - **Verify:** qBittorrent 4.6.1+ prints a temporary Web UI password to the container log on
-  first start, unless the image (`ghcr.io/home-operations/qbittorrent`) pre-configures one. Hearth
+  first start, unless the image (`ghcr.io/home-operations/qbittorrent`) pre-configures one. ApexOs
   may need to surface the app log for the first login. Also check that the default save path
   inside the image is `/downloads`; otherwise users set it once in qBittorrent.
 

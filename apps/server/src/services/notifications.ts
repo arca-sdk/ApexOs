@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import type { Notice, NoticeLevel } from '@hearth/api-types';
+import type { Notice, NoticeLevel } from '@apexos/api-types';
 import type { AppContext } from '../app.ts';
-import type { HearthNotice } from '../lib/store.ts';
+import type { ApexOsNotice } from '../lib/store.ts';
 import type { Task } from '../lib/tasks.ts';
 import { dateToIso } from '../truenas/helpers.ts';
 import type { TnAlert } from '../truenas/types.ts';
 
-const MAX_HEARTH_NOTICES = 100;
+const MAX_APEXOS_NOTICES = 100;
 
 /** Plain-language titles for common TrueNAS alert classes. */
 const ALERT_TITLES: Record<string, { title: string; link: string | null }> = {
@@ -65,14 +65,14 @@ function fromAlert(alert: TnAlert): Notice {
 
 export async function listNotices(ctx: AppContext): Promise<Notice[]> {
   const alerts = ctx.truenas.connected ? await ctx.truenas.client().call<TnAlert[]>('alert.list').catch(() => [] as TnAlert[]) : [];
-  const own: Notice[] = ctx.store.get().notices.map((n) => ({ ...n, source: 'hearth' as const }));
+  const own: Notice[] = ctx.store.get().notices.map((n) => ({ ...n, source: 'apexos' as const }));
   return [...alerts.map(fromAlert), ...own].sort((a, b) => b.time.localeCompare(a.time));
 }
 
-export async function addNotice(ctx: AppContext, notice: Omit<HearthNotice, 'id' | 'time' | 'dismissed'>): Promise<void> {
+export async function addNotice(ctx: AppContext, notice: Omit<ApexOsNotice, 'id' | 'time' | 'dismissed'>): Promise<void> {
   await ctx.store.update((s) => {
-    s.notices.unshift({ ...notice, id: `hearth:${randomUUID()}`, time: new Date().toISOString(), dismissed: false });
-    s.notices = s.notices.slice(0, MAX_HEARTH_NOTICES);
+    s.notices.unshift({ ...notice, id: `apexos:${randomUUID()}`, time: new Date().toISOString(), dismissed: false });
+    s.notices = s.notices.slice(0, MAX_APEXOS_NOTICES);
   });
   ctx.bus.changed('alerts');
 }

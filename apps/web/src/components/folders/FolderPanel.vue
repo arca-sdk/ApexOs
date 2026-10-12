@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Boxes, Globe, History, Lock, MapPin, Pencil, Trash2, User } from 'lucide-vue-next';
-import type { Folder } from '@hearth/api-types';
+import type { Folder } from '@apexos/api-types';
 import { formatBytes } from '../../lib/format.ts';
 import ConnectionAddress from './ConnectionAddress.vue';
 import SidePanel from './SidePanel.vue';
@@ -29,14 +29,14 @@ const editable = computed(() => props.folder.shared || !props.folder.system);
         </template>
         <span v-else class="badge">Not shared</span>
         <span v-if="folder.timeMachine" class="badge accent"><History :size="12" /> Time Machine</span>
-        <span v-if="folder.system" class="badge">Managed by Hearth</span>
+        <span v-if="folder.system" class="badge">Managed by ApexOs</span>
       </div>
     </template>
 
     <section class="stack" style="--gap: 10px" aria-labelledby="fp-connect">
       <h3 id="fp-connect">Open it from another computer</h3>
       <ConnectionAddress v-if="folder.shared" :folder="folder" />
-      <p v-else-if="folder.system" class="callout">Hearth keeps app data here, so this folder isn’t shared on your network.</p>
+      <p v-else-if="folder.system" class="callout">ApexOs keeps app data here, so this folder isn’t shared on your network.</p>
       <p v-else class="callout warn">This folder isn’t shared on your network right now. Choose <strong>Edit</strong> and save to share it again.</p>
       <p v-if="folder.timeMachine" class="small muted">
         To back up a Mac here, open <em>System Settings → General → Time Machine</em>, choose <em>Add Backup Disk</em> and pick

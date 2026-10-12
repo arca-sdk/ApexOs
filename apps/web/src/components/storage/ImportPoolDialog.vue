@@ -2,7 +2,7 @@
 /** Finds pools on connected drives that aren't in use yet (slow) and imports the chosen one. */
 import { onMounted, ref } from 'vue';
 import { Database, RefreshCw } from 'lucide-vue-next';
-import type { ImportablePool, TaskStarted } from '@hearth/api-types';
+import type { ImportablePool, TaskStarted } from '@apexos/api-types';
 import Modal from '../Modal.vue';
 import TaskProgress from './TaskProgress.vue';
 import { ApiError, api } from '../../lib/api.ts';
@@ -42,7 +42,7 @@ onMounted(() => load());
 
     <div v-if="loading" class="row muted searching" role="status"><span class="spin" /> Looking for pools on your drives. This can take a minute…</div>
     <div v-else-if="loadError" class="callout err stack" style="--gap: 8px">
-      <span>Hearth couldn’t look for pools: {{ loadError }}</span>
+      <span>ApexOs couldn’t look for pools: {{ loadError }}</span>
       <div><button class="btn small" @click="load(true)">Try again</button></div>
     </div>
     <template v-else-if="pools">

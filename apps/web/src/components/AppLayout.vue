@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { Boxes, Flame, FolderOpen, HardDrive, LayoutDashboard, LogOut, Settings, Users } from 'lucide-vue-next';
+import { Boxes, Mountain, FolderOpen, HardDrive, LayoutDashboard, LogOut, Settings, Users } from 'lucide-vue-next';
 import { api, session } from '../lib/api.ts';
 import { live } from '../lib/events.ts';
 import TaskTray from './TaskTray.vue';
@@ -31,9 +31,9 @@ async function logout() {
   <div class="layout">
     <aside class="sidebar">
       <div class="brand">
-        <Flame :size="22" class="brand-icon" />
+        <Mountain :size="22" class="brand-icon" />
         <div style="min-width: 0">
-          <div class="brand-name">Hearth</div>
+          <div class="brand-name">ApexOs</div>
           <div class="server-name small muted">{{ session.serverName || 'Home server' }}</div>
         </div>
         <NotificationBell />

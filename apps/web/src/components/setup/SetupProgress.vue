@@ -2,7 +2,7 @@
 /** "Working on it!" checklist for the setup task, then "Your server is ready" (or what went wrong). */
 import { computed, nextTick, ref, watch } from 'vue';
 import { Circle, CircleCheck, CircleMinus, CircleX, PartyPopper } from 'lucide-vue-next';
-import type { Task } from '@hearth/api-types';
+import type { Task } from '@apexos/api-types';
 
 const props = defineProps<{ task: Task; leaving?: boolean }>();
 const emit = defineEmits<{ dashboard: []; replan: [] }>();
@@ -42,7 +42,7 @@ watch(
             {{
               failed
                 ? 'Something went wrong along the way.'
-                : 'Hearth is setting up your server. This usually takes a minute or two. Please keep this page open.'
+                : 'ApexOs is setting up your server. This usually takes a minute or two. Please keep this page open.'
             }}
           </p>
         </div>

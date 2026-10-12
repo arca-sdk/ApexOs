@@ -2,7 +2,7 @@
 /** A pool member in the "View drives" panel: health, badges, identification and Replace. */
 import { computed } from 'vue';
 import { HardDrive, MemoryStick, Replace, Thermometer } from 'lucide-vue-next';
-import type { Drive } from '@hearth/api-types';
+import type { Drive } from '@apexos/api-types';
 import { DRIVE_KIND_LABELS, formatBytes, formatTemperature } from '../../lib/format.ts';
 import { driveTitle } from './drives.ts';
 

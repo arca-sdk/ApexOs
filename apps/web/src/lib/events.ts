@@ -1,5 +1,5 @@
 import { onBeforeUnmount, reactive, shallowRef } from 'vue';
-import type { ChangeTopic, MetricsSample, Task } from '@hearth/api-types';
+import type { ChangeTopic, MetricsSample, Task } from '@apexos/api-types';
 
 export type { Task };
 

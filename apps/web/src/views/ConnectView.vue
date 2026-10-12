@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import type { ConnectRequest } from '@hearth/api-types';
+import type { ConnectRequest } from '@apexos/api-types';
 import OnboardingFrame from '../components/OnboardingFrame.vue';
 import PasswordInput from '../components/users/PasswordInput.vue';
 import { ApiError, api, refreshStatus, session } from '../lib/api.ts';
@@ -48,7 +48,7 @@ function validate(): boolean {
   for (const k of Object.keys(fields)) delete fields[k];
   const h = host.value.trim();
   if (!h) fields.host = 'Enter your server’s IP address or hostname.';
-  else if (/^http:\/\//i.test(h)) fields.host = 'Hearth only connects over HTTPS. Enter just the address, for example 192.168.1.20.';
+  else if (/^http:\/\//i.test(h)) fields.host = 'ApexOs only connects over HTTPS. Enter just the address, for example 192.168.1.20.';
   else if (/\s/.test(h)) fields.host = 'The address can’t contain spaces.';
   if (method.value === 'password') {
     if (!username.value.trim()) fields.username = 'Enter the TrueNAS admin username.';
@@ -110,7 +110,7 @@ const friendly = computed(() => {
   if (!m) return null;
   if (/ECONNREFUSED/i.test(m)) return 'Nothing answered at that address. Check the IP address or hostname, and that TrueNAS has finished starting.';
   if (/ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(m)) return 'That hostname couldn’t be found on your network. Try the server’s IP address instead.';
-  if (/timed out|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH/i.test(m)) return 'The server didn’t respond. Check that it’s switched on and connected to the same network as Hearth.';
+  if (/timed out|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH/i.test(m)) return 'The server didn’t respond. Check that it’s switched on and connected to the same network as ApexOs.';
   if (/OTP|two-factor|2FA/i.test(m)) return 'This account uses two-factor sign-in. Use the API key option instead.';
   if (/credential|password|unauthori[sz]ed|401|denied|EXPIRED|revoked/i.test(m)) {
     return method.value === 'password' ? 'TrueNAS didn’t accept that username and password.' : 'TrueNAS didn’t accept that API key. It may have been deleted or revoked; create a new one.';
@@ -124,12 +124,12 @@ const disconnected = computed(() => session.truenasConfigured && !session.truena
 <template>
   <OnboardingFrame
     :title="disconnected ? 'Reconnect to your server' : 'Connect your server'"
-    subtitle="Hearth manages your server through TrueNAS SCALE 25.10 or newer."
+    subtitle="ApexOs manages your server through TrueNAS SCALE 25.10 or newer."
     width="min(540px, 100%)"
   >
     <div v-if="disconnected" class="callout warn stack" style="--gap: 10px" role="status">
       <span>
-        Hearth can’t reach TrueNAS right now. Check that the server is switched on and connected, then try again. If its address or
+        ApexOs can’t reach TrueNAS right now. Check that the server is switched on and connected, then try again. If its address or
         password changed, enter the new details below.
       </span>
       <div class="row wrap" style="--gap: 10px">
@@ -155,14 +155,14 @@ const disconnected = computed(() => session.truenasConfigured && !session.truena
           @input="delete fields.host"
         />
         <span id="cx-host-hint" class="hint">
-          The IP address or hostname of your TrueNAS server (the same one you type to open its web page). Hearth always connects over HTTPS and accepts the
+          The IP address or hostname of your TrueNAS server (the same one you type to open its web page). ApexOs always connects over HTTPS and accepts the
           self-signed certificate TrueNAS comes with.
         </span>
         <span v-if="fields.host" id="cx-host-err" class="error-text">{{ fields.host }}</span>
       </div>
 
       <div class="stack" style="--gap: 12px">
-        <span class="field-label" id="cx-method-label">How should Hearth sign in?</span>
+        <span class="field-label" id="cx-method-label">How should ApexOs sign in?</span>
         <div class="tabs" role="tablist" aria-labelledby="cx-method-label">
           <button
             v-for="t in tabs"
@@ -184,7 +184,7 @@ const disconnected = computed(() => session.truenasConfigured && !session.truena
 
         <div v-if="method === 'password'" id="panel-password" role="tabpanel" aria-labelledby="tab-password" class="stack panel">
           <p class="small muted">
-            Hearth signs in with your TrueNAS admin account once to create its own API key, then forgets the password. It’s never stored.
+            ApexOs signs in with your TrueNAS admin account once to create its own API key, then forgets the password. It’s never stored.
           </p>
           <div class="field">
             <label for="cx-user">TrueNAS admin username</label>
@@ -225,9 +225,9 @@ const disconnected = computed(() => session.truenasConfigured && !session.truena
       </div>
 
       <div v-if="error" class="callout err stack" style="--gap: 6px" role="alert">
-        <strong>{{ Object.keys(fields).length ? error : (friendly ?? 'Hearth couldn’t connect to TrueNAS.') }}</strong>
+        <strong>{{ Object.keys(fields).length ? error : (friendly ?? 'ApexOs couldn’t connect to TrueNAS.') }}</strong>
         <span v-if="!friendly && !Object.keys(fields).length" class="small">
-          Check the address, that the server is on and reachable from where Hearth runs, and that the
+          Check the address, that the server is on and reachable from where ApexOs runs, and that the
           {{ method === 'password' ? 'username and password are' : 'API key is' }} right.
         </span>
         <span v-if="!Object.keys(fields).length" class="small muted detail">Details: {{ error }}</span>

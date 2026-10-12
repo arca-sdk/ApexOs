@@ -30,7 +30,7 @@ const problems = computed(() => [
 <template>
   <div v-if="state.reviewLoading && !review" class="card row muted" role="status"><span class="spin" /> Checking your plan…</div>
   <div v-else-if="state.reviewError" class="callout err stack" style="--gap: 8px" role="alert">
-    <span>Hearth couldn’t check your plan: {{ state.reviewError }}</span>
+    <span>ApexOs couldn’t check your plan: {{ state.reviewError }}</span>
     <div><button class="btn small" @click="wizard.loadReview()">Try again</button></div>
   </div>
 

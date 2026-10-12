@@ -2,7 +2,7 @@
  * Client-side helpers for drives and pool layouts. These mirror the server rules closely enough to
  * guide the user (which layouts to offer, which drives fit); the server stays the authority.
  */
-import type { Drive, Pool, PoolLayout } from '@hearth/api-types';
+import type { Drive, Pool, PoolLayout } from '@apexos/api-types';
 import { DRIVE_KIND_LABELS, formatBytes } from '../../lib/format.ts';
 
 export const MIN_DRIVES: Record<PoolLayout, number> = { STRIPE: 1, MIRROR: 2, RAIDZ1: 3, RAIDZ2: 4, RAIDZ3: 5 };

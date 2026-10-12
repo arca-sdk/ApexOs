@@ -59,10 +59,10 @@ export function formatTemperature(c: number | null | undefined): string {
 /** Per-browser display preferences (stored locally). */
 export const preferences = {
   get temperatureUnit(): 'C' | 'F' {
-    return localStorage.getItem('hearth.temperatureUnit') === 'F' ? 'F' : 'C';
+    return localStorage.getItem('apexos.temperatureUnit') === 'F' ? 'F' : 'C';
   },
   set temperatureUnit(v: 'C' | 'F') {
-    localStorage.setItem('hearth.temperatureUnit', v);
+    localStorage.setItem('apexos.temperatureUnit', v);
   },
 };
 

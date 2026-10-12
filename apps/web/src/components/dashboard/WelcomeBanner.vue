@@ -3,7 +3,7 @@
 import { ref } from 'vue';
 import { Boxes, FolderOpen, HardDrive, PartyPopper, Users, X } from 'lucide-vue-next';
 
-const KEY = 'hearth.welcomeDismissed';
+const KEY = 'apexos.welcomeDismissed';
 const visible = ref(localStorage.getItem(KEY) !== '1');
 
 function dismiss() {

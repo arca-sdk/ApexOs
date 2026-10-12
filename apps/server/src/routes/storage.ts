@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { Drive, StorageOverview } from '@hearth/api-types';
+import type { Drive, StorageOverview } from '@apexos/api-types';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { estimateLayout, planPools } from '../lib/layout.ts';
