@@ -4,6 +4,7 @@ import type { Drive, StorageOverview } from '@apexos/api-types';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { estimateLayout, planPools } from '../lib/layout.ts';
+import { withDataErrors } from '../services/pool-errors.ts';
 import { importablePools, invalidateImportable } from '../services/setup.ts';
 import {
   addDriveToPool,
@@ -30,7 +31,7 @@ function unassignedDrive(overview: StorageOverview, identifier: string): Drive {
 }
 
 export async function storageRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
-  app.get('/api/storage', async () => getStorage(ctx));
+  app.get('/api/storage', async () => withDataErrors(ctx, await getStorage(ctx)));
 
   app.get('/api/storage/importable', async (req) => {
     const { fresh } = z.object({ fresh: z.string().optional() }).parse(req.query);

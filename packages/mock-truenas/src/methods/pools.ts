@@ -319,6 +319,11 @@ async function runScrub(mock: Mock, pool: PoolState, job: JobControl): Promise<n
     pool.scan.state = 'FINISHED';
     pool.scan.percentage = 100;
     pool.scan.end_time = Date.now();
+    // A scrub reads every block, so it also finds damage nobody had noticed yet.
+    if (pool.latentDataErrors?.length) {
+      pool.dataErrors = [...new Set([...(pool.dataErrors ?? []), ...pool.latentDataErrors])];
+      delete pool.latentDataErrors;
+    }
     // Deleted damaged files linger as <0x..>:<0x..> object references until a scrub; files still
     // present stay listed and count as errors found by this scrub.
     if (pool.dataErrors?.length) {

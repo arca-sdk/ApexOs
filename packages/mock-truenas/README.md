@@ -67,6 +67,12 @@ call `mock.save()` after direct mutations.
 - `setDiskTemperature(name, celsius | null)`: overrides `disk.temperatures`. At or above the critical
   threshold it raises a `DiskTemperatureTooHot` alert.
 - `addDisk(spec?)`: hot-plugs another disk (an 8 TB IronWolf by default) and returns its name (`sdh`, …).
+- `setDataErrors(pool, entries)`: the permanent-error list printed by `zpool status -v` (file paths,
+  `pool/ds@snap:/path` or `<0x..>:<0x..>`); the pool reports `CORRUPT_DATA`. `rm` turns a listed path into
+  an object reference, and the next scrub drops references and counts the entries still listed as errors.
+  In a demo state file, edit the pool's `dataErrors` array instead.
+- `addLatentDataErrors(pool, entries)`: damage nobody noticed yet; the next scrub that finishes adds it to
+  the list (e.g. a check after a repair finding more damage).
 
 ## What is simulated
 

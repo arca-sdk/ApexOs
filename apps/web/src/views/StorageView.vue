@@ -14,6 +14,7 @@ import AddSpareDialog from '../components/storage/AddSpareDialog.vue';
 import DriveRow from '../components/storage/DriveRow.vue';
 import ImportPoolDialog from '../components/storage/ImportPoolDialog.vue';
 import PoolCard from '../components/storage/PoolCard.vue';
+import PoolDataErrorsPanel from '../components/storage/PoolDataErrorsPanel.vue';
 import PoolDrivesPanel from '../components/storage/PoolDrivesPanel.vue';
 import RenamePoolDialog from '../components/storage/RenamePoolDialog.vue';
 import ReplaceDriveDialog from '../components/storage/ReplaceDriveDialog.vue';
@@ -31,6 +32,7 @@ type Dialog =
   | { kind: 'addDrive'; poolId: number; fromPanel: boolean }
   | { kind: 'addSpare'; poolId: number; fromPanel: boolean }
   | { kind: 'rename'; poolId: number }
+  | { kind: 'errors'; poolId: number }
   | { kind: 'delete'; poolId: number };
 
 const overview = ref<StorageOverview | null>(null);
@@ -202,6 +204,7 @@ const totals = computed(() => {
           @add-drive="dialog = { kind: 'addDrive', poolId: pool.id, fromPanel: false }"
           @add-spare="dialog = { kind: 'addSpare', poolId: pool.id, fromPanel: false }"
           @delete="openDelete(pool)"
+          @errors="dialog = { kind: 'errors', poolId: pool.id }"
         />
       </section>
       <section v-else class="card stack empty" style="--gap: 12px">
@@ -275,6 +278,12 @@ const totals = computed(() => {
     />
     <AddDriveDialog v-else-if="dialog.kind === 'addDrive'" :pool="dialogPool" :unassigned="unassigned" @close="closeSub" @done="subDone" />
     <AddSpareDialog v-else-if="dialog.kind === 'addSpare'" :pool="dialogPool" :unassigned="unassigned" @close="closeSub" @done="subDone" />
+    <PoolDataErrorsPanel
+      v-else-if="dialog.kind === 'errors'"
+      :pool="dialogPool"
+      @close="dialog = null"
+      @drives="dialog = { kind: 'drives', poolId: dialogPool.id }"
+    />
     <RenamePoolDialog v-else-if="dialog.kind === 'rename'" :pool="dialogPool" @close="dialog = null" @done="subDone" />
     <ConfirmDialog
       v-else-if="dialog.kind === 'delete'"

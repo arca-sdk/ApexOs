@@ -225,6 +225,8 @@ export interface Pool {
   scrubScheduled: boolean;
   isAppsPool: boolean;
   errors: { read: number; write: number; checksum: number };
+  /** Damaged-file summary; only present for pools whose state suggests damage (see "Pool data errors"). */
+  dataErrors?: PoolDataErrorSummary;
 }
 
 export interface ImportablePool {
@@ -597,3 +599,92 @@ export type ChangeTopic =
   | 'system'
   | 'truenas-connected'
   | 'truenas-disconnected';
+
+// --- Pool data errors ---
+// Files ZFS lists as permanently damaged (`zpool status -v`), and the Repair / Check pool /
+// Reset error count actions built on that list.
+
+/**
+ * How ApexOs classifies one entry of a pool's permanent-error list:
+ * - `catalog`: a file in TrueNAS's own downloaded copy of the app catalog; Repair may delete it.
+ * - `user`: any other file. ApexOs never deletes these.
+ * - `snapshot`: a damaged file held by a snapshot (restore point), listed as `dataset@snapshot:/path`.
+ * - `unreadable`: a file that was already deleted, or internal data (`<0x..>:<0x..>`, `<metadata>:<0x..>`).
+ */
+export type DataErrorKind = 'catalog' | 'user' | 'snapshot' | 'unreadable';
+
+export interface DataErrorEntry {
+  /** The entry exactly as ZFS lists it. */
+  raw: string;
+  kind: DataErrorKind;
+  /** File path (for snapshots: the path inside the snapshot); null for unreadable entries. */
+  path: string | null;
+  /** `dataset@snapshot` for snapshot entries. */
+  snapshot: string | null;
+}
+
+/**
+ * - `none`: nothing listed.
+ * - `quick-repair`: only TrueNAS app-catalog files are damaged ("Needs a quick repair").
+ * - `user-files`: the user's own files (or snapshots of them) are damaged ("N files can't be read").
+ * - `data-errors`: the list couldn't be read, only deleted/internal entries remain, or too many
+ *   system files are damaged to repair safely ("Data errors").
+ */
+export type DataErrorState = 'none' | 'quick-repair' | 'user-files' | 'data-errors';
+
+export interface PoolDataErrorSummary {
+  state: DataErrorState;
+  /** Short line for pool cards, e.g. "Needs a quick repair"; null when the state is `none`. */
+  label: string | null;
+  /** User files plus snapshot entries. */
+  userFiles: number;
+  catalogFiles: number;
+  /** Deleted-file and internal-data entries. */
+  unreadable: number;
+  /** Why the list could not be read; never means "no errors". */
+  readError: string | null;
+}
+
+/** Whether an action is allowed now, and if not, why (plain language) with a stable code. */
+export interface PoolActionAvailability {
+  allowed: boolean;
+  /**
+   * Refusal code. Repair: POOL_UNAVAILABLE, LIST_UNREADABLE, USER_FILES, TOO_MANY_FILES,
+   * NOTHING_TO_REPAIR, BUSY. Reset error count: POOL_UNAVAILABLE, NOTHING_TO_RESET, DRIVE_MISSING,
+   * CHECK_RUNNING, NO_CLEAN_CHECK, CHECK_FOUND_ERRORS, RESTARTED, BUSY.
+   */
+  code: string | null;
+  reason: string | null;
+}
+
+/** Outcome of the last check (scrub) ApexOs itself started on the pool; `stale` = TrueNAS rebooted since. */
+export type PoolCheckOutcome = 'none' | 'running' | 'clean' | 'errors' | 'stale';
+
+/** GET /api/storage/pools/:id/errors[?fresh=1] */
+export interface PoolDataErrors extends PoolDataErrorSummary {
+  poolId: number;
+  entries: DataErrorEntry[];
+  /** Identifies this exact list; send it back with Repair so a changed list aborts the repair. */
+  fingerprint: string;
+  /** When the list was read from the server. */
+  checkedAt: string;
+  /** Where TrueNAS keeps its app catalog copy (`catalog.config` location). */
+  catalogLocation: string | null;
+  /** Repair refuses more damaged system files than this. */
+  maxRepairFiles: number;
+  /** The pool keeps a single copy of its data (no mirror or parity), so ZFS has nothing to repair from. */
+  singleCopy: boolean;
+  /** Every data drive is ONLINE with no read or write errors (points to memory or cables instead). */
+  drivesLookHealthy: boolean;
+  lastCheck: PoolCheckOutcome;
+  repair: PoolActionAvailability;
+  resetErrors: PoolActionAvailability;
+}
+
+/** POST /api/storage/pools/:id/repair  RepairPoolRequest → TaskStarted (task type `pool-repair`) */
+export interface RepairPoolRequest {
+  /** `PoolDataErrors.fingerprint` the user saw when clicking Repair. */
+  fingerprint: string;
+}
+
+/** POST /api/storage/pools/:id/reset-errors → { ok: true }  (clears error counters only) */

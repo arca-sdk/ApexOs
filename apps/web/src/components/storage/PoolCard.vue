@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** One pool on the Storage page: capacity ring, protection, live progress, health and actions. */
 import { computed } from 'vue';
-import { HardDrive, Layers, LifeBuoy, Pencil, Plus, ScanSearch, Shield, ShieldAlert, ShieldCheck, Trash2, TrendingUp } from 'lucide-vue-next';
+import { FileWarning, HardDrive, Layers, LifeBuoy, Pencil, Plus, ScanSearch, Shield, ShieldAlert, ShieldCheck, Trash2, TrendingUp, Wrench } from 'lucide-vue-next';
 import type { Pool, Task } from '@apexos/api-types';
 import CapacityRing from '../CapacityRing.vue';
 import HealthBadge from '../HealthBadge.vue';
@@ -11,7 +11,7 @@ import TaskProgress from './TaskProgress.vue';
 import { formatBytes, toleranceText } from '../../lib/format.ts';
 
 const props = defineProps<{ pool: Pool; tasks?: Task[]; scrubBusy?: boolean; scrubError?: string | null }>();
-const emit = defineEmits<{ drives: []; scrub: []; rename: []; addDrive: []; addSpare: []; delete: [] }>();
+const emit = defineEmits<{ drives: []; scrub: []; rename: []; addDrive: []; addSpare: []; delete: []; errors: [] }>();
 
 const tolerance = computed(() => props.pool.layout.faultTolerance);
 const ProtectionIcon = computed(() => (tolerance.value === null ? Shield : tolerance.value > 0 ? ShieldCheck : ShieldAlert));
@@ -26,6 +26,25 @@ const growText = computed(() =>
 );
 const detailClass = computed(() => ({ degraded: 'warn', offline: 'err', errors: 'err', rebuilding: '', healthy: '', unknown: 'warn' })[props.pool.health]);
 const scanRunning = computed(() => props.pool.scan?.state === 'running');
+
+/** Damaged-file state from the server (only present for pools that look damaged). */
+const damage = computed(() => {
+  const d = props.pool.dataErrors;
+  if (!d || d.state === 'none') return null;
+  if (d.state === 'quick-repair') {
+    return { cls: 'warn', icon: Wrench, label: d.label, text: 'Only TrueNAS’s own app catalog files are damaged. Your files are fine.', action: 'Repair…' };
+  }
+  if (d.state === 'user-files') {
+    return { cls: 'err', icon: FileWarning, label: d.label, text: 'Some of your files are damaged. ApexOs never deletes them; see what you can do.', action: 'See damaged files' };
+  }
+  return {
+    cls: 'err',
+    icon: ShieldAlert,
+    label: d.label,
+    text: d.readError ? 'ApexOs couldn’t read the list of damaged files.' : 'ZFS reports damaged data on this pool.',
+    action: 'Details',
+  };
+});
 
 const menu = computed<MenuItem[]>(() => [
   { key: 'rename', label: 'Rename', icon: Pencil },
@@ -86,7 +105,15 @@ function onMenu(key: string) {
       <li><TrendingUp :size="15" aria-hidden="true" /> {{ growText }}</li>
     </ul>
 
-    <p v-if="pool.healthDetail" class="callout" :class="detailClass">{{ pool.healthDetail }}</p>
+    <div v-if="damage" class="callout damage" :class="damage.cls" role="status">
+      <component :is="damage.icon" :size="17" aria-hidden="true" />
+      <div class="stack" style="--gap: 6px">
+        <strong>{{ damage.label }}</strong>
+        <span class="small">{{ damage.text }}</span>
+        <div><button class="btn small" @click="emit('errors')">{{ damage.action }}</button></div>
+      </div>
+    </div>
+    <p v-else-if="pool.healthDetail" class="callout" :class="detailClass">{{ pool.healthDetail }}</p>
     <p v-if="!pool.scrubScheduled" class="callout warn small">
       This pool has no regular health check scheduled. Run <strong>Check pool</strong> now and then to catch damage early.
     </p>
@@ -105,6 +132,9 @@ function onMenu(key: string) {
         @click="emit('scrub')"
       >
         <span v-if="scrubBusy" class="spin" aria-hidden="true" /><ScanSearch v-else :size="15" aria-hidden="true" /> Check pool
+      </button>
+      <button v-if="!damage && pool.health === 'errors'" class="btn small" @click="emit('errors')">
+        <ShieldAlert :size="15" aria-hidden="true" /> Error details
       </button>
     </footer>
   </article>
@@ -152,5 +182,20 @@ function onMenu(key: string) {
 .spin {
   width: 14px;
   height: 14px;
+}
+.damage {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.damage > :deep(svg) {
+  flex: none;
+  margin-top: 2px;
+}
+.damage.warn > :deep(svg) {
+  color: var(--warn);
+}
+.damage.err > :deep(svg) {
+  color: var(--err);
 }
 </style>

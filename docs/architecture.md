@@ -58,6 +58,7 @@ be closed and reopened mid-operation; finished tasks also produce a notification
 |---|---|
 | Pool | ZFS pool (`pool.create`, `pool.attach`, `pool.replace`, `pool.export`, `pool.import_pool`, `pool.scrub`); display names are stored by ApexOs, ZFS names never change. |
 | Health check | Scrub task (`pool.scrub.create`, weekly with a 35-day threshold) and `pool.scrub` on demand. |
+| Damaged files | `zpool status -v <pool>` through the host helper, classified as app-catalog files (under `catalog.config` → `location`), user files, snapshot entries and deleted/internal entries. Repair deletes catalog files only (`rm -f --`, at most 20, list re-read and paths validated first), then scrubs and runs `catalog.sync`; Reset error count is `zpool clear <pool>`, allowed only after a clean check ApexOs started. |
 | Folder | Top-level dataset `<pool>/<Name>` (`share_type: SMB`, user property `apexos:folder`) + SMB share. |
 | Folder access | SMB share ACL: public = Everyone (guest share); private = admin + listed users (READ or CHANGE). The filesystem gets a broad NFSv4 ACL (owner full, group/everyone modify, inherited) so whoever the share admits can work with the files; TrueNAS DENY entries and principals ApexOs doesn't manage are preserved. |
 | User | Local TrueNAS user with SMB enabled and no shell. |

@@ -4,6 +4,7 @@ import { appRoutes } from './apps.ts';
 import { folderRoutes } from './folders.ts';
 import { locationRoutes } from './locations.ts';
 import { notificationRoutes } from './notifications.ts';
+import { poolErrorRoutes } from './pool-errors.ts';
 import { settingsRoutes } from './settings.ts';
 import { setupRoutes } from './setup.ts';
 import { storageRoutes } from './storage.ts';
@@ -15,6 +16,7 @@ export async function registerFeatureRoutes(app: FastifyInstance, ctx: AppContex
   await systemRoutes(app, ctx);
   await setupRoutes(app, ctx);
   await storageRoutes(app, ctx);
+  await poolErrorRoutes(app, ctx);
   await folderRoutes(app, ctx);
   await userRoutes(app, ctx);
   await locationRoutes(app, ctx);

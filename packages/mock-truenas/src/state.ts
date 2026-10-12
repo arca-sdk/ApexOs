@@ -154,6 +154,8 @@ export interface PoolState {
   createdAt: number;
   /** Files ZFS lists under "Permanent errors" in `zpool status -v` (paths, `pool/ds@snap:/path` or `<0x..>:<0x..>`). */
   dataErrors?: string[];
+  /** Damage not yet noticed: the next scrub that finishes adds these entries to `dataErrors`. */
+  latentDataErrors?: string[];
 }
 
 /** What `smartctl` reports for a disk (defaults: healthy, no bad sectors). */

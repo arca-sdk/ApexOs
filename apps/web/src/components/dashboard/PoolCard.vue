@@ -26,6 +26,7 @@ const SCAN_LABELS = { scrub: 'Checking data', resilver: 'Rebuilding', expand: 'E
       <div v-if="pool.scan?.state === 'running'" class="small scan">
         <span class="spin tiny" aria-hidden="true" /> {{ SCAN_LABELS[pool.scan.kind] }} · {{ Math.round(pool.scan.percent) }}%
       </div>
+      <p v-else-if="pool.dataErrors?.label" class="small detail" :class="{ err: pool.dataErrors.state !== 'quick-repair' }">{{ pool.dataErrors.label }}</p>
       <p v-else-if="pool.health !== 'healthy' && pool.healthDetail" class="small detail">{{ pool.healthDetail }}</p>
     </div>
   </RouterLink>
@@ -68,6 +69,10 @@ const SCAN_LABELS = { scrub: 'Checking data', resilver: 'Rebuilding', expand: 'E
 }
 .detail {
   color: var(--warn);
+}
+.detail.err {
+  color: var(--err);
+  font-weight: 600;
 }
 .tiny {
   width: 11px;

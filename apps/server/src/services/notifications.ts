@@ -107,6 +107,7 @@ const TASK_NOTICES: Record<string, { done: (ref: string) => string; link: string
   'pool-replace': { done: (r) => `Drive replaced in ${r}`, link: '/storage' },
   'pool-spare': { done: (r) => `Spare added to ${r}`, link: '/storage' },
   'pool-import': { done: (r) => `Pool ${r} imported`, link: '/storage' },
+  'pool-repair': { done: (r) => `${r} repaired`, link: '/storage' },
   setup: { done: () => 'Your server is ready', link: '/' },
   'system-update': { done: () => 'TrueNAS update installed', link: '/settings' },
 };

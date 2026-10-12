@@ -77,6 +77,8 @@ export interface MockTrueNas {
   setSmart(name: string, smart: Partial<SmartState>): void;
   /** Sets the files `zpool status -v` lists as permanently damaged for a pool (empty array clears). */
   setDataErrors(pool: string, files: string[]): void;
+  /** Damage the next finished scrub of the pool discovers (added to the `zpool status -v` list then). */
+  addLatentDataErrors(pool: string, files: string[]): void;
   /** Mail the simulated middleware sent (cron output to users with an e-mail address). */
   readonly mailLog: readonly { to: string; subject: string; text: string }[];
   /** Writes the state file now (no-op without `stateFile`). */
@@ -238,6 +240,12 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
       else delete pool.dataErrors;
       emitPool(mock, pool);
       syncPoolAlerts(mock);
+      persist();
+    },
+    addLatentDataErrors(poolName, files) {
+      const pool = mock.state.pools.find((p) => p.name === poolName);
+      if (!pool) throw new Error(`No pool named ${poolName}`);
+      pool.latentDataErrors = [...(pool.latentDataErrors ?? []), ...files];
       persist();
     },
     get mailLog() {
