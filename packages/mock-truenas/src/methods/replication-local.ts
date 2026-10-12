@@ -13,6 +13,7 @@
  * HEX key under the *target* name, and the left-behind `keylocation=file:///tmp/zettarepl-key-…`.
  * Encrypted data takes ~1% more space than the source.
  */
+import { runOnetimeSsh } from './replication.ts';
 import { randomBytes } from 'node:crypto';
 import type { Mock } from '../context.ts';
 import { encryptionRootOf, isEncrypted, isLocked, newEncryption, storeKey } from '../encryption.ts';
@@ -340,10 +341,18 @@ export async function runLocalReplication(mock: Mock, task: LocalOnetime, job: J
  * Registers `replication.run_onetime`. Argument shape errors (pydantic) come back from the call itself; the
  * middleware's `_validate` checks and replication errors fail the job, as on a real server.
  */
+/**
+ * The one `replication.run_onetime` registration: LOCAL runs (encrypted copies on the same box) are
+ * handled here, SSH runs (backups to and restores from another server) by `runOnetimeSsh`.
+ */
 export function registerLocalReplication(mock: Mock): void {
   mock.server.job(
     'replication.run_onetime',
-    async (p, job) => runLocalReplication(mock, validateLocalOnetime(argObj(p[0], ATTR)), job),
+    async (p, job) => {
+      const data = argObj(p[0], ATTR);
+      if (data.transport === 'SSH') return runOnetimeSsh(mock, data, job);
+      return runLocalReplication(mock, validateLocalOnetime(data), job);
+    },
     (p) => {
       const data = argObj(p[0], ATTR);
       const errors: Array<[string, string]> = [];
@@ -354,8 +363,8 @@ export function registerLocalReplication(mock: Mock): void {
         errors.push([`${ATTR}.transport`, "Input should be 'SSH', 'SSH+NETCAT' or 'LOCAL'"]);
       }
       if (errors.length) throw validationErrors(errors);
-      if (data.transport !== 'LOCAL') throw callError('ENOTSUP', `replication.run_onetime: transport ${String(data.transport)} is not simulated (only LOCAL)`);
-      if (data.direction === 'PULL') throw callError('ENOTSUP', 'replication.run_onetime: PULL over LOCAL is not simulated; use PUSH');
+      if (data.transport === 'SSH+NETCAT') throw callError('ENOTSUP', 'replication.run_onetime: SSH+NETCAT is not simulated (use SSH or LOCAL)');
+      if (data.transport === 'LOCAL' && data.direction === 'PULL') throw callError('ENOTSUP', 'replication.run_onetime: PULL over LOCAL is not simulated; use PUSH');
     },
   );
 }

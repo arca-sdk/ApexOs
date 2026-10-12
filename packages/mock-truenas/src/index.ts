@@ -17,17 +17,20 @@ import { registerEncryption } from './methods/encryption.ts';
 import { registerFilesystem } from './methods/filesystem.ts';
 import { registerNetwork, stopNetwork } from './methods/network.ts';
 import { normalizeNetwork, syncNetwork } from './network.ts';
+import { registerKeychain } from './methods/keychain.ts';
 import { registerPools } from './methods/pools.ts';
 import { registerLocalReplication } from './methods/replication-local.ts';
+import { ensureReplicationState, registerReplication, runSnapshotTaskNow } from './methods/replication.ts';
 import { registerServices } from './methods/services.ts';
 import { registerSmb } from './methods/smb.ts';
 import { registerSystem } from './methods/system.ts';
 import { registerTunables } from './methods/tunables.ts';
 import { registerDownloads } from './download.ts';
+import { registerPeer, unregisterPeer } from './peers.ts';
 import { normalizeLoadedState, StateStore } from './persist.ts';
 import { RpcServer } from './rpc.ts';
 import { seedScenario } from './scenario.ts';
-import { freshState, type DiskState, type MockState, type SmartState } from './state.ts';
+import { defaultSshConfig, freshState, type DiskState, type MockState, type SmartState } from './state.ts';
 import { diskByName, emitPool, findLeafByDisk, renderDisk } from './storage.ts';
 import { HEALTHY_SMART } from './host.ts';
 import { randomHex, randomString } from './util.ts';
@@ -35,6 +38,7 @@ import { randomHex, randomString } from './util.ts';
 export { API_VERSIONS, CallError, callError, queryFilter, RpcServer, validationError, validationErrors } from './rpc.ts';
 export type { EventSourceContext, JobControl, MethodContext, MockJob } from './rpc.ts';
 export type { MockState } from './state.ts';
+
 export { CATALOG, CATALOG_COMMIT } from './state.ts';
 
 export interface MockOptions {
@@ -54,6 +58,15 @@ export interface MockOptions {
   stateFile?: string;
   /** Seed used when there is no saved state (default 'fresh'). */
   scenario?: 'fresh' | 'configured';
+  /** Hostname of a newly seeded box (default 'truenas'). */
+  hostname?: string;
+  /** LAN address of a newly seeded box (default 192.168.1.20). */
+  lanIp?: string;
+  /**
+   * Simulated SSH port. Default: the saved `ssh.config` port (22 on a new box), changed to the next free
+   * port from 2222 when another running simulator on the same address already uses it.
+   */
+  sshPort?: number;
 }
 
 export type DriveFailure = 'FAULTED' | 'REMOVED' | 'UNAVAIL' | 'OFFLINE';
@@ -66,6 +79,8 @@ export interface MockTrueNas {
   /** Live state; mutate it freely in tests (call `save()` afterwards when using a state file). */
   readonly state: MockState;
   server: RpcServer;
+  /** Where other simulators in this process reach this one over (simulated) SSH. */
+  readonly sshAddress: { host: string; port: number };
   close(): Promise<void>;
   /**
    * Simulates a failing pool member: FAULTED (I/O errors), REMOVED (pulled; disappears from disk.query),
@@ -98,6 +113,8 @@ export interface MockTrueNas {
   cutConnectionOnNextCommit(): void;
   /** Writes the state file now (no-op without `stateFile`). */
   save(): void;
+  /** Runs a periodic snapshot task now, as if its schedule fired at `now` (snapshot, retention, bound replications). */
+  runSnapshotTask(id: number, now?: number): Promise<void>;
 }
 
 export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrueNas> {
@@ -118,10 +135,12 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
     // Like a boot: whatever is in the database gets applied (an unconfirmed change was never checked in).
     normalizeNetwork(loaded.network);
     syncNetwork(loaded.network);
+    ensureReplicationState(loaded, { ssh: defaultSshConfig() });
     ensureApiKey(mock);
     syncAllAlerts(mock);
   } else {
     seedScenario(mock, config.scenario);
+    applyIdentity(mock, opts);
   }
 
   registerSystem(mock);
@@ -142,6 +161,8 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
   registerTunables(mock);
   registerDownloads(mock);
   registerLocalReplication(mock);
+  registerKeychain(mock);
+  registerReplication(mock);
   registerAlerts(mock);
   registerEvents(mock);
 
@@ -149,6 +170,7 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
   server.onActivity(persist);
 
   const url = await server.listen();
+  registerPeer(mock, host, opts.sshPort);
   store?.save(mock.state);
 
   const requireDisk = (name: string): DiskState => {
@@ -164,8 +186,12 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
       return mock.state;
     },
     server,
+    get sshAddress() {
+      return { host, port: mock.state.ssh.tcpport };
+    },
     async close() {
       stopNetwork(mock);
+      unregisterPeer(mock);
       await server.close();
       store?.close(mock.state);
     },
@@ -287,7 +313,23 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
     save() {
       store?.save(mock.state);
     },
+    runSnapshotTask(id, now) {
+      return runSnapshotTaskNow(mock, id, now);
+    },
   };
+}
+
+/** Hostname and LAN address of a newly seeded box (so two simulators look like two servers). */
+function applyIdentity(mock: Mock, opts: MockOptions): void {
+  const { state } = mock;
+  if (opts.hostname) {
+    state.network.hostname = opts.hostname;
+    state.smb.netbiosname = opts.hostname.slice(0, 15);
+  }
+  if (opts.lanIp) {
+    const lan = state.network.interfaces.find((i) => i.linkUp);
+    if (lan) lan.addresses = [{ address: opts.lanIp, netmask: lan.addresses[0]?.netmask ?? 24 }];
+  }
 }
 
 /** A loaded state keeps its own keys and passwords, but the configured API key must keep working. */

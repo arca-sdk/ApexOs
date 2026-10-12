@@ -311,8 +311,11 @@ describe('LOCAL replication.run_onetime', () => {
     expect(noKey.validationErrors['replication_run_onetime.encryption_key']).toMatch(/required when remote dataset encryption is enabled/);
     const noSnaps = await failure(client.job('replication.run_onetime', [onetime()]));
     expect(noSnaps.message).toMatch(/does not have any matching snapshots/);
-    const ssh = await failure(client.call('replication.run_onetime', [onetime({ transport: 'SSH', ssh_credentials: 1 })]));
-    expect(ssh.message).toMatch(/not simulated/);
+    // SSH runs are handled by the backups engine (methods/replication.ts); SSH+NETCAT isn't simulated.
+    const netcat = await failure(client.call('replication.run_onetime', [onetime({ transport: 'SSH+NETCAT', ssh_credentials: 1 })]));
+    expect(netcat.message).toMatch(/not simulated/);
+    const ssh = await failure(client.job('replication.run_onetime', [onetime({ transport: 'SSH', ssh_credentials: 9999 })]));
+    expect(ssh.message).not.toMatch(/not simulated/);
 
     await client.call('pool.dataset.create', [{ name: 'HDDs/Secret', encryption: true, inherit_encryption: false, encryption_options: { generate_key: true } }]);
     await client.call('pool.snapshot.create', [{ dataset: 'HDDs/Secret', name: 's1' }]);

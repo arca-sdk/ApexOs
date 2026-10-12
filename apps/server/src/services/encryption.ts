@@ -611,7 +611,7 @@ export async function checkConversion(ctx: AppContext, name: string, opts: { own
   }
   const backups = replications.filter((r) => r.source_datasets.some((s) => inside(s, folder.dataset) || inside(folder.dataset, s)) || inside(r.target_dataset, folder.dataset));
   if (backups.length) {
-    block('REPLICATION', `The backup task ${list(backups.map((r) => `“${r.name}”`))} copies this folder. Remove the folder from that backup first: swapping in the encrypted copy breaks its chain of restore points.`);
+    block('REPLICATION', `The backup task ${list(backups.map((r) => `“${r.name}”`))} copies this folder. Remove this folder's backup on the Backups page first (swapping in the encrypted copy would break its chain of restore points), then add it again afterwards: it starts over with a fresh copy.`);
   }
   const lockedRoot = pool?.locked;
   if (lockedRoot) block('LOCKED_PARENT', 'This pool is locked. Unlock it in TrueNAS first.');

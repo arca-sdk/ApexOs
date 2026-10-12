@@ -92,6 +92,8 @@ folder can't be renamed, moved or deleted, and nothing is moved or copied across
 TrueNAS's `filesystem.put` replaces files silently and creates them as root, so ApexOs checks names first,
 writes replacements to a hidden temporary file that is renamed into place once complete, and gives new
 files the owner of their directory. Downloads are always sent as attachments.
+| Backup destination | Another TrueNAS server (its API key and address stored by ApexOs): receiving user `apexosbk_<this server>` (key login, sudo only `/usr/sbin/zfs`), SSH service, `<pool>/apexos-backups/<this server>` with quota = reservation = granted space; here an `SSH_KEY_PAIR` and pinned `SSH_CREDENTIALS` keychain entry. See [backups.md](backups.md). |
+| Folder backup | `pool.snapshottask` (recursive, schedule, lifetime = retention, no empty snapshots) + PUSH `replication` over SSH (`sudo`, `properties` so encrypted folders go raw, `readonly: SET`, `retention_policy: SOURCE`, `hold_pending_snapshots`, never from scratch). Restore = `replication.run_onetime` PULL into a new folder. |
 
 ## Security notes
 
@@ -126,3 +128,6 @@ files the owner of their directory. Downloads are always sent as attachments.
 - The filesystem ACL is deliberately broad (the share ACL is the gate). Local shell users on the NAS
   could therefore read folder contents; ApexOs creates share users without a shell.
 - Serve ApexOs over HTTPS if it is reachable from outside your LAN other than through Tailscale.
+- Backup destinations: ApexOs keeps an admin API key for each destination server (never its password). The
+  receiving account there can run `sudo zfs` without a password, which is root-equivalent over that server's
+  pools; it only accepts this server's SSH key. Keep the servers on your own network or VPN.

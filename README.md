@@ -25,6 +25,7 @@ ApexOs is not affiliated with, endorsed by, or connected to Eshtek, Inc. (HexOS)
 | **Encryption** | Per-folder ZFS encryption: *Automatic key* (unlocks at boot) or *Passphrase* (locked after every restart, never stored). Lock / unlock (locked shares disappear from the network; apps ApexOs stopped are started again), switch key mode, *Turn on encryption* for an existing folder (encrypted copy, check, swap, unencrypted original kept as a safety copy for 7 days), and a downloadable recovery file with every automatic key (TrueNAS key-file format) that tracks what changed since the last download. |
 | **Files** | Browse any folder in the browser: breadcrumbs, sorting, multi-select with keyboard and context menu, new folder, rename, move/copy (never replacing anything), delete, uploads of files and whole folders (queue with progress, asks before replacing), downloads. Refuses anything outside the folder, symlinks, snapshots and crossing into datasets inside a folder. |
 | **Users** | Network-share users: create, rename, change password, delete (share permissions are cleaned up). |
+| **Backups** | Copies of folders on another TrueNAS server you own, reached directly (same network or your own VPN such as Tailscale). ApexOs sets up both servers: a restricted receiving account (SSH key only, sudo for `zfs` only), SSH, and a space with quota + reservation on the other server; snapshot + replication tasks here. Schedules (hourly/daily/weekly), retention, speed limit, *Back up now*, encrypted folders sent raw (they stay locked on the other server), status with overdue / out of space / unreachable notices, restore into a new folder, removal that also cleans up the other server (deferred while it is off). See [docs/backups.md](docs/backups.md). |
 | **Apps** | Browse the TrueNAS catalog with search and categories; one-click installs for curated apps through **install scripts** (requirements, questions, macros, folder preparation, see [docs/install-scripts.md](docs/install-scripts.md)); any other catalog app installs with TrueNAS defaults; start/stop, update (with restore-point snapshots), update all, uninstall with optional data removal. 11 curated scripts ship today: Jellyfin, Plex, Immich, Nextcloud, Syncthing, qBittorrent, Paperless-ngx, Navidrome, Sonarr, Radarr, Vaultwarden. |
 | **Locations** | Named places for app data (*Apps (fast storage)*, *Media*, *Movies*, *Photos*, *Downloads*…), created on first use on the best pool and locked while apps use them. |
 | **Dashboard** | System, memory, network and per-app live metrics, storage rings, app cards, update banner. |
@@ -35,7 +36,7 @@ ApexOs is not affiliated with, endorsed by, or connected to Eshtek, Inc. (HexOS)
 | **Remote access** | Reach the server from anywhere through accounts you own: Tailscale (recommended, includes file shares) or Cloudflare Tunnel (web page only), installed as TrueNAS apps; guidance for your own VPN or reverse proxy; a security checklist. No ApexOs cloud or relay. See [Remote access](#remote-access). |
 
 ### Not in this release
-Virtual machines, Buddy-style backups,
+Virtual machines, backups to *other people's* servers (backups go to your own servers only),
 a hosted relay (remote access uses your own Tailscale or Cloudflare account instead), drive certification and deep checks, memory tests, email notifications,
 translations, and app hooks/widgets.
 
@@ -52,7 +53,9 @@ pnpm demo            # builds the web UI and starts ApexOs with a simulated True
 Demo mode runs an in-process mock of the TrueNAS middleware with a realistic set of drives
 (four 8 TB HDDs, an SMR 4 TB drive holding an old pool, two NVMe SSDs, a USB stick). State is kept in
 `apps/server/.data/demo/`; delete that directory to start over. Set
-`APEXOS_DEMO_SCENARIO=configured` to start with a server that is already set up.
+`APEXOS_DEMO_SCENARIO=configured` to start with a server that is already set up. Add `APEXOS_DEMO_PEER=1` to
+also start a second simulated server (`backup-nas`, on port `APEXOS_PORT + 1`) to try backups: the console
+prints its address and admin password for *Backups → Add destination*.
 
 For development with hot reload:
 
@@ -146,6 +149,7 @@ runs no cloud service or relay, and none of your traffic passes through the Apex
 - ApexOs's own web UI is plain HTTP. Over Tailscale that is fine (WireGuard encrypts it). Anywhere else, put
   HTTPS in front and set `APEXOS_SECURE_COOKIES=1`.
 | `APEXOS_UPLOAD_MAX_BYTES` | 32 GiB | Largest file the file browser accepts in one upload |
+| `APEXOS_DEMO_PEER`, `APEXOS_DEMO_PEER_PORT` | off, `APEXOS_PORT + 1` | Demo mode: a second simulated TrueNAS to use as a backup destination |
 
 ## How it works
 

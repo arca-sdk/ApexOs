@@ -26,6 +26,8 @@ await mock.close();
 | `jobDelayMs` | `150` | delay per simulated job step; tests use `0` or `1` |
 | `stateFile` | none | load state at start; save after every change (debounced, write + rename) |
 | `scenario` | `fresh` | seed used when there is no saved state |
+| `hostname` / `lanIp` | `truenas` / `192.168.1.20` | identity of a newly seeded box (so two simulators look like two servers) |
+| `sshPort` | saved `ssh.config` port | simulated SSH port; by default 22, or the next free port from 2222 when another running simulator on the same address uses it |
 
 ## Scenarios
 
@@ -95,6 +97,11 @@ call `mock.save()` after direct mutations.
 - `tunable.*` (sysctl tunables; create/update/delete are jobs, unknown sysctls and duplicates are refused).
 - Encryption (see below), `pool.dataset.rename`, `core.download` with `GET /_download/<job>`, and
   `replication.run_onetime` over LOCAL transport.
+- Backups between boxes: `keychaincredential.*` (SSH key pairs derived like `ssh-keygen -y`, SSH credentials,
+  `remote_ssh_host_key_scan`, `used_by`, cascade deletes), `ssh.config` / `ssh.update` with per-box host keys,
+  `pool.snapshottask.*` (cron schedules in the box's time zone, `allow_empty`, lifetime pruning that respects
+  `hold_pending_snapshots`, bound `auto` replications) and `replication.*` (create/update/delete/run, plus
+  `run_onetime` for SSH; see below).
 - `alert.*`; the event sources `reporting.realtime` and `app.stats` (both accept `:{"interval": n}`);
   `core.get_methods`; and CRUD events for pools, datasets, snapshots, shares, users, groups, apps,
   services and alerts.
@@ -102,7 +109,9 @@ call `mock.save()` after direct mutations.
 Run `core.get_methods` for the full list. Things that are approximated:
 - Capacity: RAIDZ capacity is `(n − parity) × smallest disk − 3%`. MIRROR uses the smallest disk and
   STRIPE the sum. Allocation is the sum of the datasets' simulated usage.
-- VMs, replication over SSH, periodic snapshot/replication tasks and SMART are not modelled.
+- VMs and SMART are not modelled.
+- `pool.dataset.create` accepts `reservation`; a reservation's unused part counts as allocated in its pool and is
+  available to the dataset and its children (quotas still cap them).
 - Operations still running when the state is saved are settled on load: resilvers finish, scrubs are
   cancelled, and deploying apps come up.
 
@@ -137,6 +146,34 @@ ZFS native encryption follows middleware 25.10 (`plugins/pool_/dataset_encryptio
   takes ~1% more space. `only_from_scratch`, `allow_from_scratch`, `readonly` (default SET), retention
   SOURCE/NONE, `properties_override` / `_exclude`, `name_regex` and naming schemas are honoured. The LOCAL
   code lives in `methods/replication-local.ts` behind a transport check so other transports can be added.
+
+## Replication between simulators
+
+Simulators started in the same process can replicate to each other over simulated SSH: each registers in a
+process-wide table (`src/peers.ts`) under its listen address, hostname and LAN address plus its `ssh.config`
+port, and an `SSH_CREDENTIALS` entry's `host`/`port` finds the other box. A closed simulator (or one whose `ssh`
+service is stopped) refuses connections. A run checks what zettarepl would hit on a real connection: the pinned
+`remote_host_key`, a key login for `username` (its `sshpubkey`, an unlocked account with a login shell), and with
+`sudo: true` passwordless sudo for `/usr/sbin/zfs`.
+
+The transfer engine (`src/methods/replication.ts`) follows zettarepl: snapshots are chosen by the bound periodic
+tasks' naming schemas, `also_include_naming_schema` or `name_regex`; the first run sends everything, later runs
+send from the newest common snapshot; an existing target without a common snapshot is refused unless
+`allow_from_scratch`; encrypted sources go raw when `properties` is on (the copy is encrypted with the same key
+and locked); plain data under an encrypted target ancestor is refused unless `encryption`; `readonly` SET /
+REQUIRE / IGNORE, `properties_exclude` / `_override`, target retention SOURCE / CUSTOM / NONE and quota or pool
+space limits (`space quota exceeded` / `out of space`) apply. Files of unencrypted datasets travel with the
+stream. `replication.run_onetime` handles `transport: "SSH"` (`runOnetimeSsh`, e.g. PULL restores) and dispatches
+on `transport` in `registerOnetimeReplication`.
+
+```ts
+const a = await startMockTrueNas({ scenario: 'configured' });
+const b = await startMockTrueNas({ scenario: 'configured', hostname: 'backup-nas' });
+b.sshAddress; // { host: '127.0.0.1', port: 2222 }: use it as the host/port of A's SSH credentials
+await b.close(); // A's next replication run fails with "Connection refused"
+```
+
+`mock.runSnapshotTask(id, now?)` runs a periodic snapshot task as if its schedule fired (tests).
 
 ## Catalog data
 

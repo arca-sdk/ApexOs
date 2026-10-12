@@ -11,7 +11,7 @@ import { lanIp } from './system.ts';
 import { readUsers, type UserDirectory } from './users.ts';
 
 /** Names ApexOs uses itself; personal folders can't take them. */
-export const RESERVED_FOLDER_NAMES = ['Applications', 'ix-apps', 'homes'];
+export const RESERVED_FOLDER_NAMES = ['Applications', 'ix-apps', 'homes', 'apexos-backups'];
 const EVERYONE_SID = 'S-1-1-0';
 /** BUILTIN\Administrators: the server's administrators always keep full access to private folders. */
 const ADMINISTRATORS_SID = 'S-1-5-32-544';
@@ -62,7 +62,8 @@ function isFolderDataset(ds: TnDataset): boolean {
   const parts = ds.id.split('/');
   if (parts.length !== 2) return false;
   const name = parts[1]!;
-  return !name.startsWith('.') && !name.startsWith('ix-');
+  // `apexos-backups` holds copies kept for other servers (services/backups.ts), not a folder of this one.
+  return !name.startsWith('.') && !name.startsWith('ix-') && name !== 'apexos-backups';
 }
 
 function accessFromShare(share: TnSmbShare | undefined, acl: TnShareAce[], dir: UserDirectory): { access: Folder['access']; users: FolderUserAccess[] } {

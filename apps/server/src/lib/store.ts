@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { DriveDiagnosis, DriveErrorCounts, DriveHealthEvent, LocationPreferenceId, NoticeLevel, SmartSummary } from '@apexos/api-types';
+import type { BackupOptions, DriveDiagnosis, DriveErrorCounts, DriveHealthEvent, LocationPreferenceId, NoticeLevel, SmartSummary } from '@apexos/api-types';
 import type { StoredPreferences } from '@apexos/shared/eshtek/preferences';
 import type { StoredEncryption } from '../services/encryption.ts';
 
@@ -108,6 +108,83 @@ export interface RemoteAccessState {
   } | null;
 }
 
+/** Another TrueNAS server that keeps copies of this server's folders (see services/backups.ts). */
+export interface BackupDestinationRecord {
+  id: string;
+  name: string;
+  /** Base URL the user entered, normalized (https://host[:port]). */
+  address: string;
+  apiUrl: string;
+  /** API key for the other server's TrueNAS (ApexOs's own key there when it created one). */
+  apiKey: string;
+  /** Id of that key when ApexOs created it (deleted again when the destination is removed). */
+  apiKeyId: number | null;
+  pool: string;
+  /** `<pool>/apexos-backups`; `containerCreated` when ApexOs created it. */
+  container: string;
+  containerCreated: boolean;
+  /** `<pool>/apexos-backups/<this server>`: quota and reservation hold the granted space. */
+  rootDataset: string;
+  /** Restricted receiving account on the other server. */
+  username: string;
+  sshHost: string;
+  sshPort: number;
+  sshEnabledByApexOs: boolean;
+  /** Keychain entries on this server. */
+  keypairId: number;
+  credentialId: number;
+  grantedBytes: number;
+  encryptedOnly: boolean;
+  createdAt: string;
+  /** Last notified problem state (one notice per change). */
+  alert: 'ok' | 'unreachable' | 'nearly-full' | 'full';
+  unreachableSince: string | null;
+}
+
+/** One folder backed up to one destination: a periodic snapshot task and a PUSH replication task here. */
+export interface BackupRecord extends BackupOptions {
+  id: string;
+  folder: string;
+  dataset: string;
+  destinationId: string;
+  remoteDataset: string;
+  namingSchema: string;
+  snapshotTaskId: number;
+  replicationId: number;
+  /** Whether the folder was encrypted when its copy started (a change breaks the copy's history). */
+  encrypted: boolean;
+  createdAt: string;
+  lastSuccessAt: string | null;
+  alert: 'ok' | 'failed' | 'overdue' | 'needs-fresh-copy';
+}
+
+/** Removal work for a destination that was offline; retried until it is back. */
+export interface PendingCleanupRecord {
+  id: string;
+  kind: 'copy' | 'destination';
+  destinationName: string;
+  apiUrl: string;
+  apiKey: string;
+  apiKeyId: number | null;
+  /** Dataset to delete (a folder's copy, or the whole per-server dataset). */
+  dataset: string;
+  username?: string;
+  container?: string;
+  containerCreated?: boolean;
+  sshEnabledByApexOs?: boolean;
+  since: string;
+  attempts: number;
+  lastError: string | null;
+}
+
+export interface BackupsState {
+  /** Identifies this ApexOs install on the servers it backs up to. */
+  serverId: string;
+  destinations: BackupDestinationRecord[];
+  jobs: BackupRecord[];
+  cleanups: PendingCleanupRecord[];
+}
+
 export interface ApexOsState {
   version: 1;
   /** Secret used to sign session cookies. */
@@ -134,6 +211,7 @@ export interface ApexOsState {
   remoteAccess: RemoteAccessState;
   /** Recovery-file tracking and "turn on encryption" runs (never passphrases). */
   encryption?: StoredEncryption;
+  backups: BackupsState;
 }
 
 function defaultState(): ApexOsState {
@@ -148,6 +226,7 @@ function defaultState(): ApexOsState {
     driveHealth: { drives: {}, dataLoss: {} },
     security: { sessionGeneration: 0, strongPassword: null, twoFactor: null, pendingTwoFactor: null },
     remoteAccess: { tailscale: null, cloudflare: null },
+    backups: { serverId: randomBytes(8).toString('hex'), destinations: [], jobs: [], cleanups: [] },
   };
 }
 
@@ -176,6 +255,7 @@ export class StateStore {
         driveHealth: { drives: { ...raw.driveHealth?.drives }, dataLoss: { ...raw.driveHealth?.dataLoss } },
         security: { ...defaults.security, ...raw.security },
         remoteAccess: { ...defaults.remoteAccess, ...raw.remoteAccess },
+        backups: { ...defaultState().backups, ...raw.backups },
       };
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;

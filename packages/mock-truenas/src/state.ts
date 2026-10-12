@@ -2,6 +2,7 @@
  * Persistent state of the simulated TrueNAS box. Everything here is plain JSON so it can be saved to
  * `MockOptions.stateFile`. Runtime-only data (jobs, timers, sessions) lives in `Mock` (context.ts).
  */
+import { randomBytes } from 'node:crypto';
 import catalogFile from './data/catalog.json' with { type: 'json' };
 import type { Obj } from './util.ts';
 
@@ -439,6 +440,9 @@ export interface MockState {
     apiKey: number;
     scrubTask: number;
     disk: number;
+    keychain: number;
+    snapshotTask: number;
+    replication: number;
   };
   system: {
     version: string;
@@ -493,6 +497,14 @@ export interface MockState {
    * files written before encryption was simulated still load.
    */
   encryptionKeys?: Record<string, string>;
+  /** `keychaincredential.*` entries (SSH key pairs and SSH connections). */
+  keychain: KeychainCredentialState[];
+  /** `ssh.config` plus the simulated host keys. */
+  ssh: SshConfigState;
+  /** `pool.snapshottask.*` (periodic snapshot tasks). */
+  snapshotTasks: SnapshotTaskState[];
+  /** `replication.*` tasks with their last known state. */
+  replications: ReplicationTaskState[];
 }
 
 export interface TunableState {
@@ -504,6 +516,64 @@ export interface TunableState {
   comment: string;
   enabled: boolean;
   update_initramfs: boolean;
+}
+
+export interface KeychainCredentialState {
+  id: number;
+  name: string;
+  type: 'SSH_KEY_PAIR' | 'SSH_CREDENTIALS';
+  attributes: Obj;
+}
+
+export interface SshConfigState {
+  tcpport: number;
+  bindiface: string[];
+  password_login_groups: string[];
+  passwordauth: boolean;
+  kerberosauth: boolean;
+  tcpfwd: boolean;
+  compression: boolean;
+  sftp_log_level: string;
+  sftp_log_facility: string;
+  weak_ciphers: string[];
+  options: string;
+  /** OpenSSH public key lines (`<type> <base64>`) of the host keys, by type. */
+  hostKeys: { ed25519: string; rsa: string; ecdsa: string };
+}
+
+export interface CronSchedule {
+  minute: string;
+  hour: string;
+  dom: string;
+  month: string;
+  dow: string;
+  begin?: string;
+  end?: string;
+}
+
+export interface SnapshotTaskState {
+  id: number;
+  dataset: string;
+  recursive: boolean;
+  lifetime_value: number;
+  lifetime_unit: 'HOUR' | 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
+  enabled: boolean;
+  exclude: string[];
+  naming_schema: string;
+  allow_empty: boolean;
+  schedule: Required<CronSchedule>;
+  /** Last run (zettarepl state), null until the task first runs. */
+  lastRun: { state: 'FINISHED' | 'ERROR'; datetime: number; error?: string } | null;
+}
+
+/** Replication task as stored (create/update fields) plus the last zettarepl state. */
+export interface ReplicationTaskState {
+  id: number;
+  fields: Obj;
+  /** `state` as reported by `replication.query` (persisted so the last result survives restarts). */
+  state: Obj;
+  /** Id of the latest `replication.run` job (runtime only; stale ids render as null). */
+  jobId: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -713,7 +783,7 @@ export function freshState(opts: SeedOptions): MockState {
     version: STATE_VERSION,
     scenario: 'fresh',
     txg: 4096,
-    nextIds: { pool: 1, user: 5, group: 8, share: 1, apiKey: 2, scrubTask: 1, disk: 0 },
+    nextIds: { pool: 1, user: 5, group: 8, share: 1, apiKey: 2, scrubTask: 1, disk: 0, keychain: 1, snapshotTask: 1, replication: 1 },
     system: {
       version: '25.10.7',
       buildtime: Date.UTC(2026, 8, 24, 18, 12, 0),
@@ -841,5 +911,43 @@ export function freshState(opts: SeedOptions): MockState {
     alerts: [],
     scrubTasks: [],
     encryptionKeys: {},
+    keychain: [],
+    ssh: defaultSshConfig(),
+    snapshotTasks: [],
+    replications: [],
   };
+}
+
+/** SSH service settings of a fresh install, with newly generated (simulated) host keys. */
+export function defaultSshConfig(): SshConfigState {
+  return {
+    tcpport: 22,
+    bindiface: [],
+    password_login_groups: [],
+    passwordauth: false,
+    kerberosauth: false,
+    tcpfwd: false,
+    compression: false,
+    sftp_log_level: '',
+    sftp_log_facility: '',
+    weak_ciphers: ['AES128-CBC', 'NONE'],
+    options: '',
+    hostKeys: {
+      ed25519: publicKeyLine('ssh-ed25519', randomBytes(32)),
+      rsa: publicKeyLine('ssh-rsa', Buffer.concat([Buffer.from([0, 0, 0, 3, 1, 0, 1, 0, 0, 1, 1, 0]), randomBytes(256)])),
+      ecdsa: publicKeyLine('ecdsa-sha2-nistp256', Buffer.concat([sshString(Buffer.from('nistp256')), sshString(Buffer.concat([Buffer.from([4]), randomBytes(64)]))])),
+    },
+  };
+}
+
+function sshString(b: Buffer): Buffer {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(b.length);
+  return Buffer.concat([len, b]);
+}
+
+/** An OpenSSH public key line `<type> <base64 blob>`; the blob is `string type || key data` like real keys. */
+export function publicKeyLine(type: string, keyData: Buffer): string {
+  const blob = type === 'ssh-ed25519' ? Buffer.concat([sshString(Buffer.from(type)), sshString(keyData)]) : Buffer.concat([sshString(Buffer.from(type)), keyData]);
+  return `${type} ${blob.toString('base64')}`;
 }

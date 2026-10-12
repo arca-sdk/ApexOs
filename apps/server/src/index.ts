@@ -8,6 +8,7 @@ import { StateStore } from './lib/store.ts';
 import { TaskManager } from './lib/tasks.ts';
 import { TrueNasManager } from './lib/truenas.ts';
 import { startDriveHealthMonitor } from './services/drive-health.ts';
+import { startBackupMonitor } from './services/backups.ts';
 import { startMetrics } from './services/metrics.ts';
 import { recordTaskNotices } from './services/notifications.ts';
 
@@ -47,6 +48,7 @@ const ctx: AppContext = {
 };
 startMetrics(ctx);
 recordTaskNotices(ctx);
+startBackupMonitor(ctx);
 
 let closeMock: (() => Promise<void>) | undefined;
 if (config.demo) {
@@ -69,6 +71,29 @@ if (config.demo) {
     });
   }
   closeMock = () => mock.close();
+  if (process.env.APEXOS_DEMO_PEER === '1') {
+    // A second simulated TrueNAS to add as a backup destination (same process, so replication reaches it).
+    const peerPassword = 'backup-demo-password';
+    const peerOpts = {
+      scenario: 'configured' as const,
+      hostname: 'backup-nas',
+      lanIp: '192.168.1.30',
+      apiKey: 'demo-peer-api-key',
+      adminPassword: peerPassword,
+      stateFile: resolve(dataDir, 'mock-truenas-peer.json'),
+    };
+    const wanted = Number(process.env.APEXOS_DEMO_PEER_PORT ?? config.port + 1);
+    const peer = await startMockTrueNas({ ...peerOpts, port: wanted }).catch(() => startMockTrueNas(peerOpts));
+    const closeMain = closeMock;
+    closeMock = async () => {
+      await peer.close();
+      await closeMain();
+    };
+    console.log(
+      `Demo backup server "backup-nas": add it under Backups with address ${peer.baseUrl}, username truenas_admin, password ${peerPassword}` +
+        (peer.server.port === wanted ? '' : ` (port ${wanted} was busy; this address changes on restart)`),
+    );
+  }
   await truenas.configure({ url: mock.url, auth: { type: 'apiKey', apiKey: 'demo-api-key' } });
   console.log(`Demo mode: simulated TrueNAS at ${mock.url}`);
 } else {

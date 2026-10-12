@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { Boxes, FolderSearch, Globe, History, Lock, LockKeyhole, MapPin, Pencil, ShieldCheck, Trash2, Unlock, User } from 'lucide-vue-next';
 import type { Folder } from '@apexos/api-types';
 import { formatBytes } from '../../lib/format.ts';
+import FolderBackupsCard from '../backups/FolderBackupsCard.vue';
 import ConnectionAddress from './ConnectionAddress.vue';
 import EncryptionSection from './EncryptionSection.vue';
 import SidePanel from './SidePanel.vue';
@@ -119,6 +120,8 @@ const encryption = ref<InstanceType<typeof EncryptionSection> | null>(null);
       </ul>
       <p v-else class="small muted">No apps or locations use this folder.</p>
     </section>
+
+    <FolderBackupsCard :folder="folder" />
 
     <section class="stack" style="--gap: 6px" aria-labelledby="fp-details">
       <h3 id="fp-details">Details</h3>

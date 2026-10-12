@@ -309,7 +309,11 @@ export function poolSize(state: MockState, pool: PoolState): number {
 
 export function poolAllocated(state: MockState, pool: PoolState): number {
   const root = getDataset(state, pool.name);
-  return root ? datasetUsed(state, root) : 0;
+  if (!root) return 0;
+  // A reservation takes its unused part out of the pool right away.
+  let reserved = 0;
+  for (const d of [root, ...descendants(state, root.id)]) if (d.reservation) reserved += Math.max(0, d.reservation - datasetUsed(state, d));
+  return datasetUsed(state, root) + reserved;
 }
 
 function vdevStats(size: number, allocated: number, l?: LeafState): Obj {
@@ -580,6 +584,11 @@ function snapshotsUsed(state: MockState, id: string): number {
 export function datasetAvailable(state: MockState, ds: DatasetState): number {
   const pool = state.pools.find((p) => p.name === ds.pool);
   let avail = pool ? Math.max(0, Math.floor(poolSize(state, pool) * 0.968) - poolAllocated(state, pool)) : 0;
+  // Space reserved for this dataset or an ancestor (and not used yet) is available to it on top of the pool's free space.
+  for (let id: string | null = ds.id; id; id = parentId(id)) {
+    const cur = getDataset(state, id);
+    if (cur?.reservation) avail += Math.max(0, cur.reservation - datasetUsed(state, cur));
+  }
   for (let id: string | null = ds.id; id; id = parentId(id)) {
     const cur = getDataset(state, id);
     if (cur?.quota) avail = Math.min(avail, Math.max(0, cur.quota - datasetUsed(state, cur)));

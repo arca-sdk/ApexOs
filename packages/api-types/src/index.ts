@@ -599,6 +599,7 @@ export type ChangeTopic =
   | 'alerts'
   | 'locations'
   | 'system'
+  | 'backups'
   | 'truenas-connected'
   | 'truenas-disconnected';
 
@@ -1303,3 +1304,187 @@ export interface FileUploadResponse {
 }
 
 /** GET /api/files/download?folder=&path= → the file as an attachment (single files only). */
+
+// --- Backups ---
+// Copies of folders on another TrueNAS server the user owns. The servers talk directly (same home
+// network or the user's own VPN such as Tailscale): ApexOs sets up both sides through their TrueNAS APIs,
+// and TrueNAS replication sends snapshots over SSH. Task types: `backup-destination-add`,
+// `backup-destination-remove`, `backup-create`, `backup-run`, `backup-fresh-copy`, `backup-remove`,
+// `backup-restore`.
+
+export type BackupFrequency = 'hourly' | 'daily' | 'weekly';
+
+export interface BackupSchedule {
+  frequency: BackupFrequency;
+  /** "HH:MM" (24 h) in the server's time zone; hourly backups use only the minutes. */
+  time: string;
+  /** 0 = Sunday … 6 = Saturday; weekly backups only. */
+  weekday: number;
+}
+
+export interface BackupOptions {
+  schedule: BackupSchedule;
+  /** Restore points are kept this many days, on both servers. */
+  keepDays: number;
+  /** Upload limit in megabits per second; null means full speed. */
+  speedLimitMbps: number | null;
+}
+
+export type DestinationHealth = 'online' | 'unreachable' | 'nearly-full' | 'full';
+
+export interface BackupDestination {
+  id: string;
+  /** The other server's name (its hostname when it was added). */
+  name: string;
+  /** Address ApexOs uses to reach it, e.g. `https://192.168.1.30`. */
+  address: string;
+  pool: string;
+  /** Where the copies live on the other server, e.g. `tank/apexos-backups/myserver`. */
+  dataset: string;
+  /** Space set aside on the other server (quota and reservation). */
+  grantedBytes: number;
+  /** Space the copies use, including restore points; null when the server can't be reached. */
+  usedBytes: number | null;
+  health: DestinationHealth;
+  /** Plain-language problem, e.g. why it can't be reached. */
+  problem: string | null;
+  checkedAt: string | null;
+  /** The backup area is inside an encrypted dataset: only encrypted folders can be sent there. */
+  encryptedOnly: boolean;
+  ssh: { host: string; port: number };
+  backupCount: number;
+  createdAt: string;
+}
+
+export type BackupState = 'waiting' | 'running' | 'ok' | 'failed' | 'overdue' | 'paused' | 'needs-fresh-copy';
+
+export interface BackupStatus {
+  state: BackupState;
+  /** Short summary, e.g. "Up to date". */
+  label: string;
+  /** What went wrong and what to do, in plain language. */
+  detail: string | null;
+  lastSuccessAt: string | null;
+  lastAttemptAt: string | null;
+  nextRunAt: string | null;
+  progress: { percent: number; bytesSent: number; bytesTotal: number } | null;
+}
+
+export interface Backup extends BackupOptions {
+  id: string;
+  folder: string;
+  pool: string;
+  dataset: string;
+  /** False when the folder was deleted on this server (its copy can still be restored). */
+  folderExists: boolean;
+  /** The folder is encrypted: it travels and is stored encrypted (the other server can't read it). */
+  encrypted: boolean;
+  destinationId: string;
+  destinationName: string;
+  remoteDataset: string;
+  remoteUsedBytes: number | null;
+  restorePoints: number | null;
+  paused: boolean;
+  status: BackupStatus;
+  createdAt: string;
+}
+
+/** Removal work waiting for an offline server to come back. */
+export interface PendingCleanup {
+  id: string;
+  destinationName: string;
+  description: string;
+  since: string;
+  lastError: string | null;
+}
+
+/** GET /api/backups */
+export interface BackupsResponse {
+  serverName: string;
+  /** Time zone schedules run in (the TrueNAS server's). */
+  timezone: string;
+  destinations: BackupDestination[];
+  backups: Backup[];
+  pendingCleanups: PendingCleanup[];
+}
+
+/** How to sign in to the other server once. Passwords are never stored. */
+export type DestinationCredentials =
+  | { address: string; method: 'password'; username: string; password: string }
+  | { address: string; method: 'apiKey'; apiKey: string };
+
+export interface DestinationPoolChoice {
+  name: string;
+  sizeBytes: number;
+  freeBytes: number;
+  encrypted: boolean;
+  usable: boolean;
+  /** Why the pool can't be used, or a caveat when it can. */
+  note: string | null;
+}
+
+/** POST /api/backups/destinations/check  DestinationCredentials → DestinationCheck */
+export interface DestinationCheck {
+  name: string;
+  version: string;
+  address: string;
+  pools: DestinationPoolChoice[];
+  sshEnabled: boolean;
+  /** Total size of this server's folders, to suggest how much space to set aside. */
+  foldersBytes: number;
+}
+
+/** POST /api/backups/destinations  AddDestinationRequest → TaskStarted */
+export type AddDestinationRequest = DestinationCredentials & { pool: string; spaceBytes: number };
+
+/** PUT /api/backups/destinations/:id  { spaceBytes } → { ok } */
+export interface UpdateDestinationRequest {
+  spaceBytes: number;
+}
+
+/** DELETE /api/backups/destinations/:id → TaskStarted (removes its backups and everything ApexOs set up there) */
+
+/** POST /api/backups  NewBackupRequest → TaskStarted */
+export interface NewBackupRequest extends BackupOptions {
+  destinationId: string;
+  folders: string[];
+}
+
+/** PUT /api/backups/:id  UpdateBackupRequest → Backup */
+export interface UpdateBackupRequest extends Partial<BackupOptions> {
+  paused?: boolean;
+}
+
+/** POST /api/backups/:id/run → TaskStarted ("Back up now") */
+/** POST /api/backups/:id/fresh-copy → TaskStarted (deletes the copy on the other server and sends everything again) */
+/** DELETE /api/backups/:id → TaskStarted (removes the tasks here and the copy on the other server) */
+/** DELETE /api/backups/cleanups/:id → { ok } (forget cleanup work for a server that is gone for good) */
+
+export interface RestorePoint {
+  name: string;
+  createdAt: string;
+}
+
+/** GET /api/backups/:id/restore */
+export interface RestoreInfo {
+  /** Newest first. */
+  restorePoints: RestorePoint[];
+  suggestedName: string;
+  sizeBytes: number;
+  encrypted: boolean;
+  keyFormat: 'passphrase' | 'key' | null;
+  pools: { name: string; displayName: string; freeBytes: number }[];
+  defaultPool: string;
+  /** The original folder still exists (the restored copy gets the same access). */
+  originalExists: boolean;
+}
+
+/** POST /api/backups/:id/restore  RestoreRequest → TaskStarted. Always creates a new folder. */
+export interface RestoreRequest {
+  /** Restore point name; null for the newest. */
+  restorePoint: string | null;
+  name: string;
+  pool: string;
+  /** Unlocks an encrypted restore right away; used once and never stored. */
+  secret?: string | null;
+}

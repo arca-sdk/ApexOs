@@ -132,6 +132,9 @@ export function registerDatasets(mock: Mock): void {
       const err = quotaError(data[key]);
       if (err) errors.push([`${attr}.${key}`, err]);
     }
+    if (data.reservation !== undefined && data.reservation !== null && (typeof data.reservation !== 'number' || !Number.isInteger(data.reservation) || data.reservation < 0)) {
+      errors.push([`${attr}.reservation`, 'Input should be a valid integer']);
+    }
     if (type === 'VOLUME' && (typeof data.volsize !== 'number' || data.volsize <= 0)) errors.push([`${attr}.volsize`, 'Field required for volumes']);
     const userProps: Record<string, string> = {};
     if (data.user_properties !== undefined) {
@@ -171,6 +174,7 @@ export function registerDatasets(mock: Mock): void {
       usedBytes: type === 'VOLUME' ? (data.sparse === true ? 64 * 1024 : (data.volsize as number)) : undefined,
       encryption,
     });
+    if (typeof data.reservation === 'number' && data.reservation > 0) ds.reservation = data.reservation;
     afterCreateEncryption(mock, ds);
     return renderDataset(state, ds);
   });

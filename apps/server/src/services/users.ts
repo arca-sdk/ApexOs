@@ -5,8 +5,8 @@ import { UserError } from '../lib/errors.ts';
 import { usernameFormat } from '../lib/validators.ts';
 import type { TnShareAce, TnSmbShare, TnUser } from '../truenas/types.ts';
 
-/** Accounts ApexOs creates for its own purposes are never shown as share users. */
-const HIDDEN_PREFIXES = ['apexos_'];
+/** Accounts ApexOs creates for its own purposes are never shown as share users (`apexosbk_`: backup receivers). */
+const HIDDEN_PREFIXES = ['apexos_', 'apexosbk_'];
 
 export interface UserDirectory {
   /** The TrueNAS account ApexOs is connected as (treated as the owner/admin). */

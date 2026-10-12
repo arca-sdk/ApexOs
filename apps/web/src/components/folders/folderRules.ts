@@ -32,7 +32,7 @@ export function usernameProblem(raw: string, taken: string[] = []): string | nul
   if (name.length < 3) return 'Use at least 3 characters.';
   if (!/^[a-zA-Z]/.test(name)) return 'Start the username with a letter.';
   if (!USERNAME.test(name)) return 'Use only letters, numbers, dashes or underscores.';
-  if (name.toLowerCase().startsWith('apexos_')) return 'Names starting with “apexos_” are reserved.';
+  if (/^apexos(bk)?_/i.test(name)) return 'Names starting with “apexos_” or “apexosbk_” are reserved.';
   if (taken.some((t) => t.toLowerCase() === name.toLowerCase())) return 'That username is already taken.';
   return null;
 }

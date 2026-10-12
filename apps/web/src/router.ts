@@ -13,6 +13,7 @@ export const router = createRouter({
     { path: '/folders', name: 'folders', component: () => import('./views/FoldersView.vue') },
     { path: '/files', name: 'files', component: () => import('./views/FilesView.vue') },
     { path: '/users', name: 'users', component: () => import('./views/UsersView.vue') },
+    { path: '/backups', name: 'backups', component: () => import('./views/BackupsView.vue') },
     { path: '/apps', name: 'apps', component: () => import('./views/AppsView.vue') },
     { path: '/apps/catalog', name: 'app-catalog', component: () => import('./views/AppCatalogView.vue') },
     { path: '/settings', name: 'settings', component: () => import('./views/SettingsView.vue') },
