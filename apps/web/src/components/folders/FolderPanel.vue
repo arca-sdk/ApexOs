@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Boxes, Globe, History, Lock, LockKeyhole, MapPin, Pencil, ShieldCheck, Trash2, Unlock, User } from 'lucide-vue-next';
+import { Boxes, FolderSearch, Globe, History, Lock, LockKeyhole, MapPin, Pencil, ShieldCheck, Trash2, Unlock, User } from 'lucide-vue-next';
 import type { Folder } from '@apexos/api-types';
 import { formatBytes } from '../../lib/format.ts';
 import ConnectionAddress from './ConnectionAddress.vue';
@@ -131,6 +131,7 @@ const encryption = ref<InstanceType<typeof EncryptionSection> | null>(null);
     </section>
 
     <template #footer>
+      <RouterLink class="btn" :to="{ path: '/files', query: { folder: folder.name } }"><FolderSearch :size="16" /> Browse</RouterLink>
       <button v-if="editable" class="btn" :disabled="!!editBlocked" :title="editBlocked ?? undefined" @click="emit('edit')"><Pencil :size="16" /> Edit</button>
       <template v-if="lockable">
         <button v-if="locked" class="btn" @click="encryption?.openUnlock()"><Unlock :size="16" /> Unlock</button>

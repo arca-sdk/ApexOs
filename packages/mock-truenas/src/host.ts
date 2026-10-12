@@ -1,8 +1,10 @@
 /**
  * A tiny simulation of the TrueNAS host shell, used by `cronjob.run`: enough of `sh -c` (quoting, `;`,
- * redirections, `$?`), `sudo` and a few binaries (zpool, smartctl, rm) for ApexOs's host helper.
+ * redirections, `$?`), `sudo` and a few binaries (zpool, smartctl, rm, mv, cp) for ApexOs's host helper.
+ * The file commands act on the simulated file tree (`src/files.ts`).
  */
 import type { Mock } from './context.ts';
+import { cpCommand, mvCommand, parseRm, rmPath } from './files.ts';
 import type { DiskState, PoolState, SmartState, UserState } from './state.ts';
 import { diskById, diskByName, emitPool, partName, poolLeaves } from './storage.ts';
 
@@ -144,6 +146,10 @@ function runCommand(mock: Mock, user: UserState, argv: string[]): ShellResult {
       return smartctl(mock, args);
     case BIN_PATHS.rm:
       return rm(mock, args);
+    case BIN_PATHS.mv:
+      return mvCommand(mock, args);
+    case BIN_PATHS.cp:
+      return cpCommand(mock, args);
     default:
       return { output: '', code: 0 };
   }
@@ -279,18 +285,23 @@ function smartctl(mock: Mock, args: string[]): ShellResult {
 }
 
 function rm(mock: Mock, args: string[]): ShellResult {
-  const paths: string[] = [];
-  let force = false;
-  let endOfOptions = false;
-  for (const a of args) {
-    if (!endOfOptions && a === '--') endOfOptions = true;
-    else if (!endOfOptions && a.startsWith('-')) force ||= a.includes('f');
-    else paths.push(a);
-  }
+  const parsed = parseRm(args);
+  if ('error' in parsed) return { output: `${parsed.error}\n`, code: 1 };
+  const { paths, force } = parsed;
+  if (!paths.length && !force) return { output: 'rm: missing operand\n', code: 1 };
   let output = '';
   let code = 0;
   for (const path of paths) {
     let removed = false;
+    const fs = rmPath(mock, path, parsed);
+    if (fs) {
+      output += fs.output;
+      if (fs.code) {
+        code = fs.code;
+        continue;
+      }
+      removed = true;
+    }
     for (const pool of mock.state.pools) {
       const i = pool.dataErrors?.indexOf(path) ?? -1;
       if (i < 0) continue;

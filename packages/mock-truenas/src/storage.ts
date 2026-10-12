@@ -857,7 +857,7 @@ export function datasetAtPath(state: MockState, path: string): DatasetState | un
   return state.datasets.find((d) => d.type === 'FILESYSTEM' && mountpoint(d) === path);
 }
 
-export type PathKind = 'DIRECTORY' | 'FILE';
+export type PathKind = 'DIRECTORY' | 'FILE' | 'SYMLINK';
 
 export function pathKind(state: MockState, path: string): PathKind | null {
   if (path === '/' || path === '/mnt') return 'DIRECTORY';

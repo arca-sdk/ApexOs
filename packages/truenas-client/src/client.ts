@@ -1,5 +1,6 @@
+import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { request as httpRequest } from 'node:http';
+import { request as httpRequest, type IncomingMessage } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import WebSocket from 'ws';
 
@@ -85,6 +86,18 @@ export interface TrueNasClientOptions {
   /** Reconnect automatically after an established connection drops. */
   reconnect?: boolean;
   pingIntervalMs?: number;
+}
+
+export interface UploadOptions {
+  /** Middleware method that reads the upload from its input pipe, e.g. `filesystem.put`. */
+  method: string;
+  params: unknown[];
+  /** File contents; streamed as it arrives, never buffered. */
+  body: AsyncIterable<Buffer | Uint8Array>;
+  /** Name sent in the `file` part (TrueNAS ignores it). */
+  filename?: string;
+  /** Socket inactivity timeout (default 10 minutes). */
+  idleTimeoutMs?: number;
 }
 
 interface PendingCall {
@@ -216,6 +229,141 @@ export class TrueNasClient extends EventEmitter {
       req.on('error', (err) => reject(new TrueNasConnectionError(`Download failed: ${err.message}`)));
       req.end();
     });
+  }
+
+  /**
+   * Streams `body` to `POST /_upload` as the input of a pipe job such as `filesystem.put`, and resolves with
+   * the job id once TrueNAS has received everything (the job itself may still be running; wait for it with
+   * `waitForJob`). The body is never buffered: it is sent as a chunked multipart request with the `data`
+   * part first, as the middleware requires. Authenticates with the API key (`Authorization: Bearer`) or a
+   * one-time token, and never over plain HTTP to anything but loopback.
+   */
+  async uploadStream(opts: UploadOptions): Promise<number> {
+    assertSecureTransport(this.options.url);
+    const authorization = await this.httpAuthorization();
+    const url = this.httpUrl('/_upload');
+    const doRequest = url.protocol === 'https:' ? httpsRequest : httpRequest;
+    const boundary = `----apexos${randomBytes(12).toString('hex')}`;
+    const preamble = Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="data"\r\nContent-Type: application/json\r\n\r\n` +
+        `${JSON.stringify({ method: opts.method, params: opts.params })}\r\n` +
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${(opts.filename ?? 'upload').replace(/["\\\r\n]/g, '_')}"\r\n` +
+        `Content-Type: application/octet-stream\r\n\r\n`,
+    );
+    const epilogue = Buffer.from(`\r\n--${boundary}--\r\n`);
+    const body = opts.body;
+
+    return new Promise<number>((resolve, reject) => {
+      let settled = false;
+      const fail = (err: Error) => {
+        if (settled) return;
+        settled = true;
+        req.destroy();
+        reject(err);
+      };
+      const req = doRequest(
+        url,
+        {
+          method: 'POST',
+          rejectUnauthorized: this.options.rejectUnauthorized ?? false,
+          timeout: opts.idleTimeoutMs ?? 600_000,
+          headers: { authorization, 'content-type': `multipart/form-data; boundary=${boundary}`, 'transfer-encoding': 'chunked' },
+        },
+        (res) => {
+          const chunks: Buffer[] = [];
+          let size = 0;
+          res.on('data', (c: Buffer) => {
+            if (size < 65_536) chunks.push(c);
+            size += c.length;
+          });
+          res.on('error', (err) => fail(new TrueNasConnectionError(`Upload failed: ${err.message}`)));
+          res.on('end', () => {
+            const text = Buffer.concat(chunks).toString('utf8');
+            if (res.statusCode !== 200) {
+              fail(new TrueNasError(`Upload refused by TrueNAS (${res.statusCode}): ${text.slice(0, 200)}`, { errname: 'EUPLOAD', code: res.statusCode }));
+              return;
+            }
+            const jobId = (() => {
+              try {
+                return (JSON.parse(text) as { job_id?: unknown }).job_id;
+              } catch {
+                return undefined;
+              }
+            })();
+            if (typeof jobId !== 'number') {
+              fail(new TrueNasError('TrueNAS did not start the upload job', { errname: 'EUPLOAD' }));
+              return;
+            }
+            settled = true;
+            resolve(jobId);
+          });
+        },
+      );
+      req.on('timeout', () => fail(new TrueNasConnectionError('Upload timed out')));
+      req.on('error', (err) => fail(new TrueNasConnectionError(`Upload failed: ${err.message}`)));
+
+      void (async () => {
+        req.write(preamble);
+        for await (const chunk of body) {
+          if (settled) return;
+          if (!req.write(chunk)) {
+            await new Promise<void>((done) => {
+              const finish = () => {
+                req.off('drain', finish);
+                req.off('close', finish);
+                done();
+              };
+              req.on('drain', finish);
+              req.on('close', finish);
+            });
+          }
+        }
+        if (!settled) req.end(epilogue);
+      })().catch((err: Error) => fail(err));
+    });
+  }
+
+  /**
+   * Opens a `/_download/<job>?auth_token=…` URL (from `core.download`) and resolves with the response
+   * stream once TrueNAS answers 200. TrueNAS binds the token to this host's address and gives a 60 s
+   * window, so call this right after `core.download`. The caller consumes (or destroys) the stream.
+   */
+  downloadStream(path: string, opts: { idleTimeoutMs?: number } = {}): Promise<IncomingMessage> {
+    assertSecureTransport(this.options.url);
+    const url = this.httpUrl(path);
+    const doRequest = url.protocol === 'https:' ? httpsRequest : httpRequest;
+    return new Promise((resolve, reject) => {
+      const req = doRequest(url, { method: 'GET', rejectUnauthorized: this.options.rejectUnauthorized ?? false, timeout: opts.idleTimeoutMs ?? 600_000 }, (res) => {
+        if (res.statusCode === 200) {
+          resolve(res);
+          return;
+        }
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8').slice(0, 200);
+          reject(new TrueNasError(`Download failed (${res.statusCode})${text ? `: ${text}` : ''}`, { errname: 'EDOWNLOAD', code: res.statusCode }));
+        });
+      });
+      req.on('timeout', () => req.destroy(new Error('Download timed out')));
+      req.on('error', (err) => reject(new TrueNasConnectionError(`Download failed: ${err.message}`)));
+      req.end();
+    });
+  }
+
+  /** An HTTP(S) URL on the middleware host, over the same transport as the websocket. */
+  private httpUrl(path: string): URL {
+    const ws = new URL(this.options.url);
+    return new URL(path, `${ws.protocol === 'wss:' ? 'https:' : 'http:'}//${ws.host}`);
+  }
+
+  /** `Authorization` header for the middleware's HTTP endpoints. */
+  private async httpAuthorization(): Promise<string> {
+    const { auth } = this.options;
+    if (auth.type === 'apiKey') return `Bearer ${auth.apiKey}`;
+    // Password sessions get a short-lived, single-use token instead of resending the password.
+    const token = await this.call<string>('auth.generate_token', [300, {}, true, true]);
+    return `Token ${token}`;
   }
 
   /** Subscribe to a middleware event (e.g. `alert.list`, `app.query`). Returns an unsubscribe function. */

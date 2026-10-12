@@ -3,6 +3,7 @@ import type { AppContext } from '../app.ts';
 import { appRoutes } from './apps.ts';
 import { driveHealthRoutes } from './drive-health.ts';
 import { encryptionRoutes } from './encryption.ts';
+import { fileRoutes } from './files.ts';
 import { folderRoutes } from './folders.ts';
 import { locationRoutes } from './locations.ts';
 import { networkRoutes } from './network.ts';
@@ -23,6 +24,7 @@ export async function registerFeatureRoutes(app: FastifyInstance, ctx: AppContex
   await poolErrorRoutes(app, ctx);
   await folderRoutes(app, ctx);
   await encryptionRoutes(app, ctx);
+  await fileRoutes(app, ctx);
   await userRoutes(app, ctx);
   await locationRoutes(app, ctx);
   await appRoutes(app, ctx);

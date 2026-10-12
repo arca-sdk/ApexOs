@@ -1,5 +1,6 @@
 import type { Mock } from '../context.ts';
 import { hiddenByLock, pathInLockedDataset } from '../encryption.ts';
+import { isLockedMount, lockedDatasetFor, pathInode } from '../files.ts';
 import { callError, queryFilter, validationError, validationErrors } from '../rpc.ts';
 import type { AclState, MockState } from '../state.ts';
 import {
@@ -46,6 +47,7 @@ function requirePath(state: MockState, raw: unknown, attr: string): string {
 const LOCKED_PATH = 'Path component is currently encrypted and locked';
 
 function childrenOf(state: MockState, path: string): string[] {
+  if (isLockedMount(state, path)) return [];
   const out = new Set<string>();
   if (path === '/') out.add('/mnt');
   for (const ds of state.datasets) {
@@ -63,16 +65,17 @@ function fsEntry(state: MockState, path: string): Obj {
   const node = state.fs.nodes.find((n) => n.path === path);
   const ds = datasetContaining(state, path);
   const isMount = !!datasetAtPath(state, path) || path === '/';
-  const size = kind === 'FILE' ? (node?.size ?? 0) : childrenOf(state, path).length + 2;
+  const size = kind === 'FILE' ? (node?.size ?? 0) : kind === 'SYMLINK' ? (node?.target?.length ?? 0) : childrenOf(state, path).length + 2;
   const acl = path.startsWith('/mnt/') ? !effectiveAcl(state, path).trivial : false;
   return {
     name: path === '/' ? '/' : path.slice(path.lastIndexOf('/') + 1),
     path,
-    realpath: path,
+    // Like the middleware: a symlink's realpath is where it points.
+    realpath: kind === 'SYMLINK' && node?.target ? normPath(node.target.startsWith('/') ? node.target : `${dirname(path)}/${node.target}`) : path,
     type: kind,
     size,
     allocation_size: kind === 'FILE' ? Math.ceil(size / 4096) * 4096 : 512,
-    mode: (kind === 'DIRECTORY' ? 0o40000 : 0o100000) | own.mode,
+    mode: (kind === 'DIRECTORY' ? 0o40000 : kind === 'SYMLINK' ? 0o120000 : 0o100000) | (kind === 'SYMLINK' ? 0o777 : own.mode),
     mount_id: ds ? Math.floor(seeded(ds.id) * 10000) + 100 : 30,
     acl,
     uid: own.uid,
@@ -223,7 +226,7 @@ export function registerFilesystem(mock: Mock): void {
     const ds = datasetAtPath(state, path);
     const t = (node?.mtime ?? ds?.createdAt ?? mock.bootTime) / 1000;
     return {
-      realpath: path,
+      realpath: e.realpath,
       type: e.type,
       size: e.size,
       allocation_size: e.allocation_size,
@@ -236,7 +239,7 @@ export function registerFilesystem(mock: Mock): void {
       ctime: t,
       btime: t,
       dev: e.mount_id,
-      inode: Math.floor(seeded(path) * 100000) + 34,
+      inode: node?.inode ?? pathInode(path),
       nlink: e.type === 'DIRECTORY' ? 2 : 1,
       acl: e.acl,
       is_mountpoint: e.is_mountpoint,
@@ -264,6 +267,7 @@ export function registerFilesystem(mock: Mock): void {
       throw validationError('filesystem_mkdir.path', 'Directories may only be created inside a dataset under /mnt/<pool>.');
     }
     if (pathInLockedDataset(state, dirname(path))) throw callError('EPERM', `[Errno 1] Operation not permitted: '${path}'`);
+    if (lockedDatasetFor(state, path)) throw callError('EINVAL', `${path}: the dataset is locked`);
     if (pathKind(state, path)) throw callError('EEXIST', `${path}: path already exists`);
     if (pathKind(state, dirname(path)) !== 'DIRECTORY') throw callError('ENOENT', `${dirname(path)}: parent directory does not exist`);
     const opts = isObj(data.options) ? data.options : {};

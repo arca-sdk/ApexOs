@@ -103,6 +103,7 @@ export function seedConfigured(mock: Mock): void {
       mtime,
     ),
   );
+  seedFolderContents(mock, setupDay);
 
   // Share user and shares
   const { user: alice } = createUser(mock, { username: 'alice', full_name: 'Alice', password: 'alice-password', group_create: true, smb: true }, false);
@@ -149,6 +150,75 @@ export function seedConfigured(mock: Mock): void {
   }
   const ixApps = getDataset(state, 'SSDs/ix-apps/docker');
   if (ixApps) ixApps.usedBytes += Math.round(600 * MiB);
+}
+
+function textFile(path: string, text: string, mtime: number): FsNode {
+  const bytes = Buffer.from(text, 'utf8');
+  return { path, type: 'FILE', size: bytes.length, mtime, sample: bytes.toString('base64') };
+}
+
+/** Something to browse in the configured scenario: files of realistic sizes and a child dataset ("Scans"). */
+function seedFolderContents(mock: Mock, setupDay: number): void {
+  const { state } = mock;
+  const ago = (days: number, hours = 0) => Date.now() - days * DAY - hours * 3600_000;
+  const add = (base: string, entries: Array<[name: string, type: 'DIRECTORY' | 'FILE', size: number, daysAgo: number]>) =>
+    state.fs.nodes.push(...entries.map(([name, type, size, days]) => ({ path: `${base}/${name}`, type, size, mtime: ago(days, (size % 7) + 1) })));
+  add('/mnt/HDDs/Media/Movies', [
+    ['Big Buck Bunny (2008)', 'DIRECTORY', 4, 30],
+    ['Big Buck Bunny (2008)/Big Buck Bunny (2008).mkv', 'FILE', 4_389_202_117, 30],
+    ['Big Buck Bunny (2008)/Big Buck Bunny (2008).en.srt', 'FILE', 41_870, 30],
+    ['Sintel (2010)', 'DIRECTORY', 3, 21],
+    ['Sintel (2010)/Sintel (2010).mkv', 'FILE', 2_146_883_901, 21],
+    ['Tears of Steel (2012).mp4', 'FILE', 1_498_115_220, 12],
+  ]);
+  add('/mnt/HDDs/Media/TV Shows', [
+    ['Nature Walks', 'DIRECTORY', 3, 40],
+    ['Nature Walks/Season 01', 'DIRECTORY', 5, 40],
+    ['Nature Walks/Season 01/Nature Walks - S01E01.mkv', 'FILE', 734_003_200, 40],
+    ['Nature Walks/Season 01/Nature Walks - S01E02.mkv', 'FILE', 702_545_920, 39],
+    ['Nature Walks/Season 01/Nature Walks - S01E03.mkv', 'FILE', 761_266_176, 38],
+  ]);
+  add('/mnt/HDDs/Media/Music', [
+    ['Field Recordings', 'DIRECTORY', 5, 60],
+    ['Field Recordings/01 Morning Birds.flac', 'FILE', 38_211_004, 60],
+    ['Field Recordings/02 Rain on the Roof.flac', 'FILE', 41_920_660, 60],
+    ['Field Recordings/03 Harbour.flac', 'FILE', 29_507_312, 60],
+    ['Field Recordings/cover.jpg', 'FILE', 412_330, 60],
+  ]);
+  add('/mnt/HDDs/Photos/2024', [
+    ['IMG_0012.JPG', 'FILE', 3_912_440, 300],
+    ['IMG_0013.JPG', 'FILE', 4_105_772, 300],
+    ['IMG_0047.JPG', 'FILE', 3_377_019, 280],
+    ['Birthday.mov', 'FILE', 187_663_431, 250],
+  ]);
+  add('/mnt/HDDs/Photos/2025', [
+    ['Beach day', 'DIRECTORY', 5, 90],
+    ['Beach day/IMG_2201.HEIC', 'FILE', 2_811_904, 90],
+    ['Beach day/IMG_2202.HEIC', 'FILE', 2_704_113, 90],
+    ['Beach day/IMG_2203.HEIC', 'FILE', 3_016_257, 90],
+    ['IMG_1990.JPG', 'FILE', 4_430_871, 120],
+  ]);
+  add('/mnt/HDDs/Photos/2026', [
+    ['Summer trip', 'DIRECTORY', 4, 70],
+    ['Summer trip/IMG_3301.HEIC', 'FILE', 3_204_118, 70],
+    ['Summer trip/IMG_3302.HEIC', 'FILE', 2_998_404, 70],
+    ['Summer trip/Ferry.mov', 'FILE', 96_221_806, 69],
+  ]);
+  add('/mnt/HDDs/Documents/Taxes', [
+    ['2024 return.pdf', 'FILE', 402_118, 200],
+    ['2025 return.pdf', 'FILE', 418_903, 8],
+  ]);
+  state.fs.nodes.push(
+    textFile('/mnt/HDDs/Documents/Recipes/Pancakes.txt', 'Pancakes (serves 4)\n\n2 cups flour\n2 eggs\n1.5 cups milk\n2 tbsp sugar\n2 tsp baking powder\nPinch of salt\n\nWhisk, rest 10 minutes, cook on a hot pan.\n', ago(15)),
+    textFile('/mnt/HDDs/Documents/Recipes/Tomato soup.txt', 'Tomato soup\n\n1 kg tomatoes\n1 onion\n2 cloves garlic\n500 ml stock\nOlive oil, salt, pepper\n\nRoast, blend, season.\n', ago(33)),
+    textFile('/mnt/HDDs/Documents/Shopping list.txt', 'Milk\nBread\nCoffee\nBatteries (AA)\n', ago(1)),
+  );
+  // A dataset inside a folder ("separate storage"): the file browser must not move things across it.
+  addDataset(mock, { id: 'HDDs/Documents/Scans', share_type: 'SMB', usedBytes: Math.round(220 * MiB), createdAt: setupDay + 86400_000 }, false);
+  add('/mnt/HDDs/Documents/Scans', [
+    ['Receipt 2026-09-14.pdf', 'FILE', 188_224, 28],
+    ['Warranty - dishwasher.pdf', 'FILE', 932_550, 110],
+  ]);
 }
 
 export function seedScenario(mock: Mock, scenario: 'fresh' | 'configured'): void {

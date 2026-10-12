@@ -83,6 +83,13 @@ call `mock.save()` after direct mutations.
   detach/offline/online/export/import/scrub plus scrub tasks), `pool.dataset.*` and `pool.snapshot.*`.
 - Sharing and accounts: `sharing.smb.*`, `smb.*`, `user.*`, `group.*`, `filesystem.*` (stat, listdir,
   mkdir, ACLs, setperm, chown, ACL templates).
+- Files (`src/files.ts`): datasets hold an in-memory file tree (persisted in the state file; child datasets
+  appear as mountpoint directories). `POST /_upload` with `filesystem.put` (streaming multipart, API key,
+  token or basic auth) keeps each file's size and first 16 KiB; `core.download('filesystem.get')` +
+  `GET /_download/…` (single use, 60 s window) reads it back with filler after the sample. The host shell
+  runs `mv`, `cp` and `rm` on the tree with GNU semantics for `-n`, `-T`, `-t`, `-a`, `-r`, `-x` and
+  `--one-file-system`, including dataset boundaries. A `locked` flag on a dataset hides its contents.
+  The configured scenario seeds files of realistic sizes and a child dataset `HDDs/Documents/Scans`.
 - Apps: `docker.*`, `catalog.*`, `app.*` (catalog and custom compose apps, port and host-path
   validation, `ix_volume` datasets, upgrade and rollback) and `app.image.*`.
 - `tunable.*` (sysctl tunables; create/update/delete are jobs, unknown sysctls and duplicates are refused).

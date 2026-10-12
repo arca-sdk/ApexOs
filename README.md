@@ -23,6 +23,7 @@ ApexOs is not affiliated with, endorsed by, or connected to Eshtek, Inc. (HexOS)
 | **Storage** | Pools with capacity, protection (computed from the real vdev layout), health in plain language, live scrub / rebuild / expansion progress; unused drives; create, rename, delete (typed confirmation), *Check pool* (scrub), add a drive (RAIDZ expansion), replace a drive, add a hot spare, import a pool; risk acknowledgement when a pool is degraded. |
 | **Folders** | A folder is a ZFS dataset + SMB share. Public (guest) or private with per-user *View only* / *Full access*, storage limits, Time Machine targets, connection addresses for Mac/Windows, *Used by* tracking. |
 | **Encryption** | Per-folder ZFS encryption: *Automatic key* (unlocks at boot) or *Passphrase* (locked after every restart, never stored). Lock / unlock (locked shares disappear from the network; apps ApexOs stopped are started again), switch key mode, *Turn on encryption* for an existing folder (encrypted copy, check, swap, unencrypted original kept as a safety copy for 7 days), and a downloadable recovery file with every automatic key (TrueNAS key-file format) that tracks what changed since the last download. |
+| **Files** | Browse any folder in the browser: breadcrumbs, sorting, multi-select with keyboard and context menu, new folder, rename, move/copy (never replacing anything), delete, uploads of files and whole folders (queue with progress, asks before replacing), downloads. Refuses anything outside the folder, symlinks, snapshots and crossing into datasets inside a folder. |
 | **Users** | Network-share users: create, rename, change password, delete (share permissions are cleaned up). |
 | **Apps** | Browse the TrueNAS catalog with search and categories; one-click installs for curated apps through **install scripts** (requirements, questions, macros, folder preparation, see [docs/install-scripts.md](docs/install-scripts.md)); any other catalog app installs with TrueNAS defaults; start/stop, update (with restore-point snapshots), update all, uninstall with optional data removal. 11 curated scripts ship today: Jellyfin, Plex, Immich, Nextcloud, Syncthing, qBittorrent, Paperless-ngx, Navidrome, Sonarr, Radarr, Vaultwarden. |
 | **Locations** | Named places for app data (*Apps (fast storage)*, *Media*, *Movies*, *Photos*, *Downloads*…), created on first use on the best pool and locked while apps use them. |
@@ -34,7 +35,7 @@ ApexOs is not affiliated with, endorsed by, or connected to Eshtek, Inc. (HexOS)
 | **Remote access** | Reach the server from anywhere through accounts you own: Tailscale (recommended, includes file shares) or Cloudflare Tunnel (web page only), installed as TrueNAS apps; guidance for your own VPN or reverse proxy; a security checklist. No ApexOs cloud or relay. See [Remote access](#remote-access). |
 
 ### Not in this release
-The file browser, virtual machines, Buddy-style backups,
+Virtual machines, Buddy-style backups,
 a hosted relay (remote access uses your own Tailscale or Cloudflare account instead), drive certification and deep checks, memory tests, email notifications,
 translations, and app hooks/widgets.
 
@@ -144,6 +145,7 @@ runs no cloud service or relay, and none of your traffic passes through the Apex
   bumping the generation (Sign out everywhere, password change, enabling 2FA) voids older cookies.
 - ApexOs's own web UI is plain HTTP. Over Tailscale that is fine (WireGuard encrypts it). Anywhere else, put
   HTTPS in front and set `APEXOS_SECURE_COOKIES=1`.
+| `APEXOS_UPLOAD_MAX_BYTES` | 32 GiB | Largest file the file browser accepts in one upload |
 
 ## How it works
 

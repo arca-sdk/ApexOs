@@ -11,6 +11,7 @@ export const router = createRouter({
     { path: '/', name: 'dashboard', component: () => import('./views/DashboardView.vue') },
     { path: '/storage', name: 'storage', component: () => import('./views/StorageView.vue') },
     { path: '/folders', name: 'folders', component: () => import('./views/FoldersView.vue') },
+    { path: '/files', name: 'files', component: () => import('./views/FilesView.vue') },
     { path: '/users', name: 'users', component: () => import('./views/UsersView.vue') },
     { path: '/apps', name: 'apps', component: () => import('./views/AppsView.vue') },
     { path: '/apps/catalog', name: 'app-catalog', component: () => import('./views/AppCatalogView.vue') },

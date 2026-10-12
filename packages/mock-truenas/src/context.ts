@@ -1,4 +1,5 @@
 import { primaryAddress, type NetworkSnapshot } from './network.ts';
+import type { ServerResponse } from 'node:http';
 import type { RpcServer } from './rpc.ts';
 import type { MockState } from './state.ts';
 
@@ -35,8 +36,11 @@ export class Mock {
   /** Cron jobs (runtime only: ApexOs creates them temporarily). */
   readonly cronjobs = new Map<number, CronJobState>();
   nextCronId = 1;
-  /** Single-use `/_download/<job>` tokens (see download.ts). */
-  readonly downloads = new Map<string, { jobId: number; expires: number; filename?: string }>();
+  /**
+   * Single-use `/_download/<job>` tokens (see download.ts). `serve` streams a job's output directly (file
+   * downloads); otherwise the collected output or the job log is served.
+   */
+  readonly downloads = new Map<string, { jobId: number; expires: number; filename?: string; serve?: (res: ServerResponse) => void }>();
   /** What `core.download` jobs wrote to their output pipe, until it is downloaded. */
   readonly downloadOutputs = new Map<number, { text: string }>();
   /** Mail the middleware would have sent (e.g. cron output to the run-as user's address). */

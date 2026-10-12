@@ -8,6 +8,7 @@
  * check the job state afterwards.
  */
 import { randomBytes } from 'node:crypto';
+import type { ServerResponse } from 'node:http';
 import type { Mock } from './context.ts';
 import { callError, type JobControl } from './rpc.ts';
 
@@ -22,7 +23,21 @@ interface Downloadable {
   handler: DownloadableJobHandler;
 }
 
+/** A download whose job streams straight into the HTTP response (e.g. `filesystem.get`). */
+export type StreamingDownload = (params: unknown[], filename: string, windowMs: number) => { jobId: number; serve: (res: ServerResponse) => void };
+
 const registries = new WeakMap<Mock, Map<string, Downloadable>>();
+const streaming = new WeakMap<Mock, Map<string, StreamingDownload>>();
+
+/** Registers a method whose `core.download` output is streamed to the `/_download` response as it is produced. */
+export function registerStreamingDownload(mock: Mock, name: string, start: StreamingDownload): void {
+  let reg = streaming.get(mock);
+  if (!reg) {
+    reg = new Map();
+    streaming.set(mock, reg);
+  }
+  reg.set(name, start);
+}
 
 function registry(mock: Mock): Map<string, Downloadable> {
   let reg = registries.get(mock);
@@ -65,6 +80,14 @@ export function registerDownloads(mock: Mock): void {
     if (typeof method !== 'string' || !method) throw callError('EINVAL', 'core.download: method must be a string');
     if (!Array.isArray(args)) throw callError('EINVAL', 'core.download: args must be a list');
     if (typeof filename !== 'string') throw callError('EINVAL', 'core.download: filename must be a string');
+    const stream = streaming.get(mock)?.get(method);
+    if (stream) {
+      const windowMs = buffered === true ? 3_600_000 : 60_000;
+      const { jobId, serve } = stream(args, filename, windowMs);
+      const token = randomBytes(16).toString('hex');
+      mock.downloads.set(token, { jobId, expires: Date.now() + windowMs, filename, serve });
+      return [jobId, `/_download/${jobId}?auth_token=${token}`];
+    }
     const entry = registry(mock).get(method);
     if (!entry) {
       if (server.listMethods().some((m) => m.name === method)) throw callError('EINVAL', `${method} does not produce a download`);
@@ -86,6 +109,7 @@ export function registerDownloads(mock: Mock): void {
     if (grant.jobId !== id) return void res.writeHead(401, { 'content-type': 'text/plain' }).end('Invalid token');
     if (!server.getJob(id)) return void res.writeHead(404, { 'content-type': 'text/plain' }).end('Not found');
     if (grant.expires < Date.now()) return void res.writeHead(410, { 'content-type': 'text/plain' }).end('Download window expired');
+    if (grant.serve) return grant.serve(res);
     const output = mock.downloadOutputs.get(id);
     if (output) {
       // The pipe is read until the job closes it; a failed job just ends the stream early.

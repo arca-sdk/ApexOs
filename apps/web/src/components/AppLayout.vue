@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { Boxes, Globe, Mountain, FolderOpen, HardDrive, LayoutDashboard, LogOut, Settings, Users } from 'lucide-vue-next';
+import { Boxes, Files, Globe, Mountain, FolderOpen, HardDrive, LayoutDashboard, LogOut, Settings, Users } from 'lucide-vue-next';
 import { api, session } from '../lib/api.ts';
 import { live } from '../lib/events.ts';
 import TaskTray from './TaskTray.vue';
@@ -13,6 +13,7 @@ const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/storage', label: 'Storage', icon: HardDrive },
   { to: '/folders', label: 'Folders', icon: FolderOpen },
+  { to: '/files', label: 'Files', icon: Files },
   { to: '/users', label: 'Users', icon: Users },
   { to: '/apps', label: 'Apps', icon: Boxes },
   { to: '/remote', label: 'Remote access', icon: Globe },

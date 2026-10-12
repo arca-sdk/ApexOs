@@ -81,6 +81,17 @@ be closed and reopened mid-operation; finished tasks also produce a notification
 | Encrypted folder | The folder dataset is its own encryption root (child of the unencrypted pool root): `pool.dataset.create` with `encryption: true, inherit_encryption: false` and `generate_key` (*Automatic key*, HEX, stored by TrueNAS so it unlocks at boot) or `passphrase` (never stored by TrueNAS or ApexOs, locked after every boot). Lock/unlock: `pool.dataset.lock` / `pool.dataset.unlock` (passphrase or hex key checked first with `pool.dataset.encryption_summary`); TrueNAS hides the share while locked and brings it back on unlock, but doesn't restart apps, so ApexOs records the apps that were running and starts them. Key mode: `pool.dataset.change_key`. |
 | Turn on encryption | ZFS can't encrypt in place, so ApexOs copies: snapshot `apexos-enc-1` → `replication.run_onetime` (LOCAL, `encryption_key_location: "$TrueNAS"`, all snapshots, `readonly: IGNORE`, quotas overridden) into the hidden `<pool>/.apexos-enc-<Name>` → share paused → snapshot `apexos-enc-2` + incremental run → compare datasets, snapshots and files → rename original to `<Name>-unencrypted-<date>` and the copy to `<Name>` → `change_key` with the same key (renames don't move TrueNAS's stored key) or the chosen passphrase → quotas and share restored. Always received with an automatic key that ApexOs escrows in its state until TrueNAS stores it under the folder's name; a chosen passphrase is applied at the end and lives only in memory. Each step is idempotent and recorded, so Retry (and a restart) resumes; before the switch-over the original is untouched and Discard removes the attempt. Refused for system folders, folders apps use, other shares or TrueNAS services inside the folder, encrypted sub-datasets, replication sources, and when the pool lacks ~103% of the folder's size. |
 | Recovery file | `core.download` of `pool.dataset.export_keys <pool>` for every pool, fetched by the ApexOs server (download tokens are tied to the caller's address) and merged into one JSON file in TrueNAS's key-file format. ApexOs remembers when it was downloaded and which automatic keys were added or changed since. |
+| File browser | Paths relative to a folder; `filesystem.listdir` (no dates, so only the visible page is `filesystem.stat`ed), `filesystem.mkdir`, uploads streamed browser → ApexOs → `POST /_upload` (`filesystem.put`), downloads via `core.download('filesystem.get')` streamed back; rename/move/copy/delete with `mv -n`, `cp -a -n --one-file-system`, `rm -r --one-file-system` through the host helper (batched, run as tasks, verified with `stat` afterwards). |
+
+## File browser safety
+
+`apps/server/src/services/files.ts` never trusts the browser: paths are folder-relative and every segment
+is a validated name (no `/`, `..`, control characters or `.zfs`); every component below the folder root is
+`stat`ed so symlinks are never followed and unknown mounts are refused; folder roots and datasets inside a
+folder can't be renamed, moved or deleted, and nothing is moved or copied across a dataset boundary.
+TrueNAS's `filesystem.put` replaces files silently and creates them as root, so ApexOs checks names first,
+writes replacements to a hidden temporary file that is renamed into place once complete, and gives new
+files the owner of their directory. Downloads are always sent as attachments.
 
 ## Security notes
 

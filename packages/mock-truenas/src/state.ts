@@ -223,9 +223,15 @@ export interface SnapshotState {
 
 export interface FsNode {
   path: string;
-  type: 'DIRECTORY' | 'FILE';
+  type: 'DIRECTORY' | 'FILE' | 'SYMLINK';
   size: number;
   mtime: number;
+  /** Symlinks: where the link points (as stored, not resolved). */
+  target?: string;
+  /** Files: base64 of the first bytes (capped, see `src/files.ts`); the rest reads back as filler. */
+  sample?: string;
+  /** Kept across renames and moves (otherwise derived from the path). */
+  inode?: number;
 }
 
 export interface Owner {

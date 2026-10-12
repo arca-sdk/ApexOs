@@ -5,6 +5,7 @@
 import { clearAlert, raiseAlert, registerAlerts, syncAllAlerts, syncPoolAlerts } from './alerts.ts';
 import { Mock, type MockConfig } from './context.ts';
 import { registerEvents } from './events.ts';
+import { registerFiles } from './files.ts';
 import { registerAccounts } from './methods/accounts.ts';
 import { registerApps } from './methods/apps.ts';
 import { registerAuth } from './methods/auth.ts';
@@ -135,6 +136,7 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
   registerSmb(mock);
   registerServices(mock);
   registerFilesystem(mock);
+  registerFiles(mock);
   registerApps(mock);
   registerCron(mock);
   registerTunables(mock);

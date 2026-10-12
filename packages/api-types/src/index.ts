@@ -1171,3 +1171,135 @@ export interface RecoveryKeyStatus {
 }
 
 /** POST /api/encryption/recovery/file → the recovery file (JSON, `{"<dataset>": "<hex key>"}`), as an attachment. */
+
+// --- File browser ---
+// Browse and organize the files inside the folders ApexOs lists. Paths are always relative to the
+// folder ('' is the folder itself, segments separated by '/'); the server resolves and checks them.
+// `folder` is a folder name as in GET /api/folders (or `pool/Name` when two pools have the same name).
+
+/** `link`: a symbolic link (shown, never opened or followed). `other`: devices, sockets and the like. */
+export type FileEntryType = 'folder' | 'file' | 'link' | 'other';
+export type FileSortKey = 'name' | 'size' | 'type' | 'modified';
+export type FileSortOrder = 'asc' | 'desc';
+
+export interface FileEntry {
+  name: string;
+  /** Relative to the folder. */
+  path: string;
+  type: FileEntryType;
+  /** Bytes, for files and links; null for folders. */
+  size: number | null;
+  /** Last modification (ISO); null when unknown. */
+  modified: string | null;
+  /** A separately stored area inside the folder (its own dataset): can be opened, but not renamed, moved or deleted. */
+  separate: boolean;
+  /** Name starts with a dot. */
+  hidden: boolean;
+}
+
+/** One folder the file browser can open. */
+export interface FileRoot {
+  name: string;
+  pool: string;
+  poolDisplayName: string;
+  dataset: string;
+  /** Encrypted and locked: nothing can be browsed until it is unlocked. */
+  locked: boolean;
+  encrypted: boolean;
+}
+
+/** GET /api/files */
+export interface FileRootsResponse {
+  folders: FileRoot[];
+  /** Largest file the server accepts in one upload (APEXOS_UPLOAD_MAX_BYTES). */
+  uploadMaxBytes: number;
+  /** Most items one move, copy or delete may act on. */
+  maxItems: number;
+}
+
+/**
+ * GET /api/files/list?folder=&path=&sort=name|size|type|modified&order=asc|desc&offset=0&limit=200&hidden=1&foldersOnly=1
+ * Folders always come first. Only the returned page is `stat`ed for dates.
+ */
+export interface FileListing {
+  folder: string;
+  path: string;
+  entries: FileEntry[];
+  /** Entries in the directory (after the hidden filter, at most `scanLimit`). */
+  total: number;
+  offset: number;
+  limit: number;
+  sort: FileSortKey;
+  order: FileSortOrder;
+  /** The directory has more than `scanLimit` entries; only the first ones (by name) are shown. */
+  truncated: boolean;
+  scanLimit: number;
+  /** Sorting by date was not possible for a directory this large; sorted by name instead. */
+  sortFallback: boolean;
+  /** This directory is inside a separately stored area (a dataset inside the folder). */
+  separate: boolean;
+}
+
+/** How to handle a name that already exists at the destination. `ask` fails with 409 CONFLICT. */
+export type FileConflictMode = 'ask' | 'replace' | 'keep-both' | 'skip';
+
+/** POST /api/files/check  { folder, path, names } → which names already exist in that directory */
+export interface FileCheckRequest {
+  folder: string;
+  path: string;
+  names: string[];
+}
+export interface FileCheckResponse {
+  existing: { name: string; type: FileEntryType }[];
+  /** Names the server would refuse, with the reason. */
+  invalid: { name: string; reason: string }[];
+}
+
+/**
+ * POST /api/files/mkdir → FileEntry. With `parents`, `name` may be a relative path and existing folders
+ * along it are reused. `conflict`: 'ask' (default, 409 EXISTS if taken), 'keep-both' (adds " (1)"),
+ * 'skip' (reuse an existing folder).
+ */
+export interface FileMkdirRequest {
+  folder: string;
+  path: string;
+  name: string;
+  parents?: boolean;
+  conflict?: 'ask' | 'keep-both' | 'skip';
+}
+
+/** POST /api/files/rename → FileEntry (never replaces an existing name) */
+export interface FileRenameRequest {
+  folder: string;
+  path: string;
+  newName: string;
+}
+
+/**
+ * POST /api/files/move and /api/files/copy → TaskStarted (task types `files-move`, `files-copy`).
+ * `conflict`: 'ask' fails with 409 CONFLICT listing the names; 'keep-both' adds " (1)"; 'skip' leaves them.
+ * Nothing is ever replaced.
+ */
+export interface FileTransferRequest {
+  folder: string;
+  paths: string[];
+  destination: string;
+  conflict?: 'ask' | 'keep-both' | 'skip';
+}
+
+/** POST /api/files/delete → TaskStarted (task type `files-delete`). There is no trash. */
+export interface FileDeleteRequest {
+  folder: string;
+  paths: string[];
+}
+
+/**
+ * POST /api/files/upload?folder=&path=&name=&conflict=  (body: the raw file, Content-Type application/octet-stream)
+ * `name` may contain '/' to recreate a folder structure (missing folders are created).
+ */
+export interface FileUploadResponse {
+  action: 'created' | 'replaced' | 'renamed' | 'skipped';
+  entry: FileEntry;
+}
+
+/** GET /api/files/download?folder=&path= → the file as an attachment (single files only). */
