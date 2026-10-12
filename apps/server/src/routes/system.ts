@@ -3,12 +3,11 @@ import { z } from 'zod';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { getDashboard } from '../services/dashboard.ts';
-import { assertRiskAcknowledged, getNetwork, getTimezone, getUpdateInfo, power, scanHardware, setTimezone } from '../services/system.ts';
+import { assertRiskAcknowledged, getTimezone, getUpdateInfo, power, scanHardware, setTimezone } from '../services/system.ts';
 
 export async function systemRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   app.get('/api/dashboard', async () => getDashboard(ctx));
   app.get('/api/system/scan', async () => scanHardware(ctx));
-  app.get('/api/system/network', async () => getNetwork(ctx));
   app.get('/api/system/timezone', async () => getTimezone(ctx));
   app.put('/api/system/timezone', async (req) => {
     const { timezone } = z.object({ timezone: z.string().min(1) }).parse(req.body);

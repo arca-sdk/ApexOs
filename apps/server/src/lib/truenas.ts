@@ -59,8 +59,11 @@ export const WATCHED_EVENTS = [
  *
  * Emits `status` (connected: boolean) and `update` (CollectionUpdate).
  */
+type ConnectionOptions = Pick<TrueNasClientOptions, 'url' | 'auth' | 'rejectUnauthorized'>;
+
 export class TrueNasManager extends EventEmitter {
   private current?: TrueNasClient;
+  private options?: ConnectionOptions;
 
   get configured(): boolean {
     return this.current !== undefined;
@@ -70,19 +73,35 @@ export class TrueNasManager extends EventEmitter {
     return this.current?.isConnected ?? false;
   }
 
+  /** Websocket URL of the active connection. */
+  get url(): string | undefined {
+    return this.options?.url;
+  }
+
   /** Connects with new credentials; only replaces the active client if the connection succeeds. */
-  async configure(options: Pick<TrueNasClientOptions, 'url' | 'auth' | 'rejectUnauthorized'>): Promise<void> {
+  async configure(options: ConnectionOptions): Promise<void> {
     const next = new TrueNasClient({ ...options, reconnect: true });
     await next.connect();
     const previous = this.current;
+    this.options = options;
     this.attach(next);
     await previous?.close();
     await this.watch(next);
   }
 
+  /**
+   * Opens a fresh connection to `url` with the current credentials (e.g. after the server's address
+   * changed) and makes it the active one. The current connection stays in place if this fails.
+   */
+  async connectTo(url: string): Promise<void> {
+    if (!this.options) throw new TrueNasConnectionError('ApexOs is not connected to TrueNAS yet');
+    await this.configure({ ...this.options, url });
+  }
+
   /** Configures without failing if TrueNAS is down; the client keeps retrying in the background. */
-  async configureLazy(options: Pick<TrueNasClientOptions, 'url' | 'auth' | 'rejectUnauthorized'>): Promise<void> {
+  async configureLazy(options: ConnectionOptions): Promise<void> {
     const next = new TrueNasClient({ ...options, reconnect: true });
+    this.options = options;
     this.attach(next);
     try {
       await next.connect();

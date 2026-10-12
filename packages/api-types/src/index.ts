@@ -105,7 +105,7 @@ export interface HardwareScan {
   cards: ScanCard[];
 }
 
-/** GET /api/system/network */
+/** GET /api/system/network (the full response is `NetworkSettings`, see "Network settings" below) */
 export interface NetworkInfo {
   hostname: string;
   gateway: string[];
@@ -787,3 +787,97 @@ export interface DriveHealthDetail {
  * POST /api/storage/drives/:identifier/smart → SmartSummary
  * Reads SMART now (takes a few seconds). 409 SMART_UNAVAILABLE when the drive can't report it.
  */
+
+// --- Network settings ---
+
+/** How a network connection gets its IPv4 address: automatically (DHCP), fixed (static), or not set up. */
+export type NetworkMode = 'dhcp' | 'static' | 'none';
+
+export interface NetworkAddress {
+  address: string;
+  /** Prefix length, e.g. 24 for 255.255.255.0. */
+  prefix: number;
+}
+
+/** One network port or VLAN with its configuration. Extends the read-only fields of `NetworkInfo`. */
+export interface NetworkInterfaceSettings extends NetworkInfoInterface {
+  mode: NetworkMode;
+  /** Fixed IPv4 addresses configured in TrueNAS (the first one is what ApexOs edits). */
+  configuredAddresses: NetworkAddress[];
+  /** IPv4 addresses the port has right now. */
+  liveAddresses: NetworkAddress[];
+  description: string;
+  /** Configured MTU; null means the default (1500). */
+  mtu: number | null;
+  vlan: { parent: string; tag: number } | null;
+  /** ApexOs talks to TrueNAS through this connection: changing it can cut ApexOs off. */
+  usedByApexOs: boolean;
+  /** ApexOs can change ports and VLANs; bridges and bonds are left to the TrueNAS UI. */
+  editable: boolean;
+  /** False for a VLAN that exists in the configuration but was never applied. */
+  applied: boolean;
+}
+
+export type NetworkInfoInterface = NetworkInfo['interfaces'][number];
+
+/** GET /api/system/network */
+export interface NetworkSettings extends NetworkInfo {
+  interfaces: NetworkInterfaceSettings[];
+  domain: string;
+  /** Gateway set by hand ('' = taken from DHCP). `gateway` holds the one in use. */
+  configuredGateway: string;
+  /** DNS servers set by hand ([] = taken from DHCP). `nameservers` holds the ones in use. */
+  configuredNameservers: string[];
+  gatewayFromDhcp: boolean;
+  nameserversFromDhcp: boolean;
+  /** TrueNAS lets only one connection use DHCP; this is it (null when none does). */
+  dhcpInterface: string | null;
+  /** Address of the server that ApexOs connects to, when TrueNAS reports it. */
+  apexosAddress: string | null;
+  /** Staged network changes that were never applied (e.g. left over in the TrueNAS UI). */
+  pendingChanges: boolean;
+  /** Seconds until TrueNAS undoes applied-but-unconfirmed changes; null when nothing is waiting. */
+  rollbackSecondsLeft: number | null;
+  /** How long ApexOs gives itself to confirm a change before TrueNAS undoes it. */
+  checkinTimeoutSeconds: number;
+}
+
+/** PUT /api/system/network/interfaces/:name → TaskStarted */
+export interface InterfaceChangeRequest {
+  mode: 'dhcp' | 'static';
+  /** Required for `static`. */
+  address?: string;
+  /** Required for `static`. */
+  prefix?: number;
+  /** Router address. Omit to keep the current setting; '' = take it from DHCP. */
+  gateway?: string;
+  /** Up to three DNS servers. Omit to keep the current setting; [] = take them from DHCP. */
+  nameservers?: string[];
+  /** Required when `usedByApexOs`: the user accepts that ApexOs may lose its connection for a moment. */
+  acknowledgeConnectionRisk?: boolean;
+}
+
+/** PUT /api/system/network/dns → TaskStarted */
+export interface DnsChangeRequest {
+  /** [] = take them from DHCP. */
+  nameservers: string[];
+  /** '' = take it from DHCP. */
+  gateway: string;
+}
+
+/** POST /api/system/network/vlans → TaskStarted */
+export interface VlanCreateRequest {
+  parent: string;
+  /** 1–4094, unique per parent. */
+  tag: number;
+  mode: 'dhcp' | 'static';
+  address?: string;
+  prefix?: number;
+  description?: string;
+}
+
+/** DELETE /api/system/network/vlans/:name → TaskStarted */
+/** POST /api/system/network/discard → { ok } (drops staged changes that were never applied) */
+
+/** Step a network task adds when it had to put the previous settings back (the task then fails). */
+export type NetworkRestoreStep = 'Restoring your previous settings';

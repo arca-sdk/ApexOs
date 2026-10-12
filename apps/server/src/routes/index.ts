@@ -4,6 +4,7 @@ import { appRoutes } from './apps.ts';
 import { driveHealthRoutes } from './drive-health.ts';
 import { folderRoutes } from './folders.ts';
 import { locationRoutes } from './locations.ts';
+import { networkRoutes } from './network.ts';
 import { notificationRoutes } from './notifications.ts';
 import { poolErrorRoutes } from './pool-errors.ts';
 import { settingsRoutes } from './settings.ts';
@@ -24,4 +25,5 @@ export async function registerFeatureRoutes(app: FastifyInstance, ctx: AppContex
   await appRoutes(app, ctx);
   await notificationRoutes(app, ctx);
   await driveHealthRoutes(app, ctx);
+  await networkRoutes(app, ctx);
 }

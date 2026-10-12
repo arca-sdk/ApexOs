@@ -12,7 +12,8 @@ import { registerCron } from './methods/cron.ts';
 import { registerDatasets } from './methods/datasets.ts';
 import { checkTemperatureAlert, registerDisks } from './methods/disks.ts';
 import { registerFilesystem } from './methods/filesystem.ts';
-import { registerNetwork } from './methods/network.ts';
+import { registerNetwork, stopNetwork } from './methods/network.ts';
+import { normalizeNetwork, syncNetwork } from './network.ts';
 import { registerPools } from './methods/pools.ts';
 import { registerServices } from './methods/services.ts';
 import { registerSmb } from './methods/smb.ts';
@@ -83,6 +84,12 @@ export interface MockTrueNas {
   setMemoryErrors(count: number, location?: string): void;
   /** Mail the simulated middleware sent (cron output to users with an e-mail address). */
   readonly mailLog: readonly { to: string; subject: string; text: string }[];
+  /**
+   * Network test hook: the next `interface.commit` cuts every client off (connections drop, new ones
+   * are refused), as if the new settings made the server unreachable. Nobody can check in, so the
+   * change is rolled back when the check-in timeout runs out, and the server is reachable again.
+   */
+  cutConnectionOnNextCommit(): void;
   /** Writes the state file now (no-op without `stateFile`). */
   save(): void;
 }
@@ -102,6 +109,9 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
   const mock = new Mock(loaded ?? freshState(config), server, config);
   if (loaded) {
     normalizeLoadedState(loaded);
+    // Like a boot: whatever is in the database gets applied (an unconfirmed change was never checked in).
+    normalizeNetwork(loaded.network);
+    syncNetwork(loaded.network);
     ensureApiKey(mock);
     syncAllAlerts(mock);
   } else {
@@ -143,6 +153,7 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
     },
     server,
     async close() {
+      stopNetwork(mock);
       await server.close();
       store?.close(mock.state);
     },
@@ -257,6 +268,9 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
     },
     get mailLog() {
       return mock.mailLog;
+    },
+    cutConnectionOnNextCommit() {
+      mock.network.cutNextCommit = true;
     },
     save() {
       store?.save(mock.state);

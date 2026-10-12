@@ -129,6 +129,7 @@ function realtimeSampler(mock: Mock): () => Obj {
     txTotal += Math.round(txRate * dt);
     const interfaces: Obj = {};
     for (const i of state.network.interfaces) {
+      if (i.live === false) continue;
       interfaces[i.name] = i.linkUp
         ? { link_state: 'LINK_STATE_UP', speed: i.speed, received_bytes: rxTotal, sent_bytes: txTotal, received_bytes_rate: rxRate, sent_bytes_rate: txRate }
         : { link_state: 'LINK_STATE_DOWN', speed: 0, received_bytes: 0, sent_bytes: 0, received_bytes_rate: 0, sent_bytes_rate: 0 };

@@ -369,18 +369,36 @@ export interface ScrubTaskState {
   enabled: boolean;
 }
 
+/**
+ * A network interface. Configuration fields (`configured`, `ipv4_dhcp`, `aliases`, `description`,
+ * `configuredMtu`, `vlan`) are the middleware's database rows: `interface.update/create/delete` change
+ * only them. Live fields (`addresses`, `mtu`, `live`) are what the kernel has, recomputed when the
+ * configuration is applied (`interface.commit`, rollback, boot).
+ */
 export interface InterfaceState {
   name: string;
+  /** PHYSICAL when omitted (older saved states). */
+  type?: 'PHYSICAL' | 'VLAN';
   mac: string;
   linkUp: boolean;
   speed: number | null;
+  /** Whether the interface has a row in the database (a fresh install has none: every port uses DHCP). */
+  configured?: boolean;
   ipv4_dhcp: boolean;
   /** Live addresses (from DHCP or static config). */
   addresses: Array<{ address: string; netmask: number }>;
   /** Configured static aliases. */
   aliases: Array<{ type: 'INET' | 'INET6'; address: string; netmask: number }>;
   description: string;
+  /** Live MTU. */
   mtu: number;
+  /** Configured MTU (null: default). */
+  configuredMtu?: number | null;
+  vlan?: { parent: string; tag: number; pcp: number | null };
+  /** False for a VLAN that is configured but not applied yet (`fake` in `interface.query`). */
+  live?: boolean;
+  /** Address the simulated DHCP server hands this interface (it remembers leases by MAC). */
+  dhcpLease?: string;
 }
 
 export interface MockState {
@@ -674,25 +692,34 @@ export function freshState(opts: SeedOptions): MockState {
       interfaces: [
         {
           name: 'enp5s0',
+          type: 'PHYSICAL',
           mac: '70:85:c2:4a:91:3e',
           linkUp: true,
           speed: 1000,
+          configured: true,
           ipv4_dhcp: true,
           addresses: [{ address: '192.168.1.20', netmask: 24 }],
           aliases: [],
           description: '',
           mtu: 1500,
+          configuredMtu: null,
+          live: true,
+          dhcpLease: '192.168.1.20',
         },
         {
           name: 'enp6s0',
+          type: 'PHYSICAL',
           mac: 'a0:36:9f:5c:21:08',
           linkUp: false,
           speed: null,
+          configured: false,
           ipv4_dhcp: false,
           addresses: [],
           aliases: [],
           description: '',
           mtu: 1500,
+          configuredMtu: null,
+          live: true,
         },
       ],
     },

@@ -187,6 +187,7 @@ export class RpcServer {
   private http?: Server;
   private wss?: WebSocketServer;
   private isClosed = false;
+  private unreachable = false;
   readonly jobDelayMs: number;
   /** Changes on simulated reboots (`GET /api/boot_id`, `system.boot_id`). */
   bootId = randomUUID();
@@ -209,6 +210,29 @@ export class RpcServer {
 
   get closed(): boolean {
     return this.isClosed;
+  }
+
+  /** False while the simulated server can't be reached over the network. */
+  get reachable(): boolean {
+    return !this.unreachable;
+  }
+
+  /**
+   * Simulates the server dropping off (false) or coming back on (true) the network. While it is
+   * unreachable, connections are cut and new connections and HTTP requests fail.
+   */
+  setReachable(reachable: boolean): void {
+    this.unreachable = !reachable;
+    if (!reachable) this.dropConnections();
+  }
+
+  /** Cuts every websocket connection abruptly, as when the address clients connected to disappears. */
+  dropConnections(): void {
+    for (const c of this.clients) {
+      stopAll(c);
+      c.ws.terminate();
+    }
+    this.clients.clear();
   }
 
   getJob(id: number): MockJob | undefined {
@@ -365,6 +389,10 @@ export class RpcServer {
 
   async listen(): Promise<string> {
     this.http = createServer((req, res) => {
+      if (this.unreachable) {
+        req.socket.destroy();
+        return;
+      }
       const path = new URL(req.url ?? '/', 'http://localhost').pathname;
       if (req.method === 'GET' && path === '/api/versions') {
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(API_VERSIONS));
@@ -378,6 +406,10 @@ export class RpcServer {
     });
     this.wss = new WebSocketServer({ noServer: true });
     this.http.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+      if (this.unreachable) {
+        socket.destroy();
+        return;
+      }
       const path = new URL(req.url ?? '/', 'http://localhost').pathname;
       if (!WS_PATHS.has(path)) {
         socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');

@@ -1,11 +1,12 @@
 import { z } from 'zod';
-import type { HardwareScan, NetworkInfo, ScanCard, ScanCheck, StorageOverview, SystemSummary, TimezoneInfo, UpdateInfo } from '@apexos/api-types';
+import type { HardwareScan, ScanCard, ScanCheck, StorageOverview, SystemSummary, TimezoneInfo, UpdateInfo } from '@apexos/api-types';
 import type { TrueNasClient } from '@apexos/truenas-client';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { servernameFormat } from '../lib/validators.ts';
 import { GiB } from '../truenas/helpers.ts';
-import type { TnDockerStatus, TnInterface, TnSystemInfo, TnUpdateStatus } from '../truenas/types.ts';
+import type { TnDockerStatus, TnSystemInfo, TnUpdateStatus } from '../truenas/types.ts';
+import { stableLanAddress } from './network.ts';
 import { anyPoolAtRisk, getStorage } from './storage.ts';
 
 export const serverNameSchema = z
@@ -40,9 +41,10 @@ export function isSupportedVersion(version: string): boolean {
 export async function lanIp(client: TrueNasClient): Promise<string | null> {
   const ip = await client.call<string>('interface.websocket_local_ip').catch(() => null);
   if (ip && ip !== '127.0.0.1' && ip !== '::1') return ip;
-  const summary = await client.call<{ ips: Record<string, { IPV4?: string[] }> }>('network.general.summary').catch(() => null);
-  const first = Object.values(summary?.ips ?? {}).flatMap((i) => i.IPV4 ?? [])[0];
-  return first ? first.split('/')[0]! : null;
+  const summary = await client
+    .call<{ ips: Record<string, { IPV4?: string[] }>; default_routes: string[]; nameservers: string[] }>('network.general.summary')
+    .catch(() => null);
+  return summary ? stableLanAddress(summary) : null;
 }
 
 export async function getSystemSummary(ctx: AppContext): Promise<SystemSummary> {
@@ -262,32 +264,6 @@ export async function setTimezone(ctx: AppContext, timezone: string): Promise<vo
   const { choices } = await getTimezone(ctx);
   if (!choices.includes(timezone)) throw new UserError('Unknown time zone', 400, 'VALIDATION', { timezone: 'Pick a time zone from the list' });
   await ctx.truenas.client().call('system.general.update', [{ timezone }]);
-}
-
-export async function getNetwork(ctx: AppContext): Promise<NetworkInfo> {
-  const client = ctx.truenas.client();
-  const [config, summary, interfaces] = await Promise.all([
-    client.call<{ hostname: string }>('network.configuration.config'),
-    client.call<{ default_routes: string[]; nameservers: string[] }>('network.general.summary'),
-    client.call<TnInterface[]>('interface.query'),
-  ]);
-  return {
-    hostname: config.hostname,
-    gateway: summary.default_routes ?? [],
-    nameservers: summary.nameservers ?? [],
-    interfaces: interfaces.map((i) => {
-      const speed = i.state.active_media_subtype?.match(/(\d+)\s*(G|M)b/i);
-      return {
-        name: i.name,
-        type: i.type,
-        linkUp: i.state.link_state === 'LINK_STATE_UP',
-        speedMbps: speed ? Number(speed[1]) * (speed[2]!.toUpperCase() === 'G' ? 1000 : 1) : null,
-        mac: i.state.link_address,
-        dhcp: i.ipv4_dhcp,
-        addresses: i.state.aliases.filter((a) => a.type === 'INET' || a.type === 'INET6').map((a) => `${a.address}${a.netmask !== undefined ? `/${a.netmask}` : ''}`),
-      };
-    }),
-  };
 }
 
 export async function getUpdateInfo(ctx: AppContext, storage?: StorageOverview): Promise<UpdateInfo> {

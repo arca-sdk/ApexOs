@@ -1,3 +1,4 @@
+import { primaryAddress, type NetworkSnapshot } from './network.ts';
 import type { RpcServer } from './rpc.ts';
 import type { MockState } from './state.ts';
 
@@ -38,6 +39,16 @@ export class Mock {
   readonly downloads = new Map<string, { jobId: number; expires: number }>();
   /** Mail the middleware would have sent (e.g. cron output to the run-as user's address). */
   readonly mailLog: { to: string; subject: string; text: string }[] = [];
+  /** Interface changes in flight (in memory only, like the middleware's copy of its network tables). */
+  readonly network: {
+    /** Taken by the first staged change; restored by a rollback, dropped by a check-in. */
+    snapshot: NetworkSnapshot | null;
+    rollbackTimer?: NodeJS.Timeout;
+    /** When the pending rollback fires (ms since epoch). */
+    rollbackAt: number;
+    /** Test hook: the next commit cuts clients off until the change is rolled back. */
+    cutNextCommit: boolean;
+  } = { snapshot: null, rollbackAt: 0, cutNextCommit: false };
 
   constructor(
     public state: MockState,
@@ -58,13 +69,9 @@ export class Mock {
     return this.state.txg;
   }
 
-  /** Primary LAN address (enp5s0). */
+  /** Primary LAN address (enp5s0 unless its address was changed). */
   get lanIp(): string {
-    for (const i of this.state.network.interfaces) {
-      const a = i.addresses[0];
-      if (i.linkUp && a) return a.address;
-    }
-    return '127.0.0.1';
+    return primaryAddress(this.state.network);
   }
 
   sleep(ms: number): Promise<void> {
