@@ -1,0 +1,61 @@
+{
+  "version": 4,
+  "train": "community",
+  "script": {
+    "version": "1.0.0",
+    "changeLog": "Initial script."
+  },
+  "requirements": {
+    "locations": ["ApplicationsPerformance", "Downloads"],
+    "specifications": ["1CORE", "512MBRAM", "200MB"],
+    "permissions": ["READ_WRITE_LOCATIONS"],
+    "ports": [30024, 51413]
+  },
+  "ensure_directories_exists": [
+    {
+      "path": "$LOCATION(ApplicationsPerformance)/qbittorrent/config",
+      "owner": { "user": "apps", "group": "apps" },
+      "snapshot": { "id": "config" }
+    }
+  ],
+  "app_values": {
+    "TZ": "$TIMEZONE",
+    "run_as": {
+      "user": 568,
+      "group": 568
+    },
+    "network": {
+      "web_port": {
+        "bind_mode": "published",
+        "port_number": 30024
+      },
+      "bt_port": {
+        "bind_mode": "published",
+        "port_number": 51413
+      }
+    },
+    "storage": {
+      "config": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(ApplicationsPerformance)/qbittorrent/config",
+          "acl_enable": false
+        }
+      },
+      "downloads": {
+        "type": "host_path",
+        "mount_path": "/downloads",
+        "host_path_config": {
+          "path": "$LOCATION(Downloads)",
+          "acl_enable": false
+        }
+      }
+    },
+    "resources": {
+      "limits": {
+        "cpus": "$CPUS(2)",
+        "memory": "$MEMORY(10, 1024)"
+      }
+    }
+  }
+}

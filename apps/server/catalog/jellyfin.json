@@ -1,0 +1,92 @@
+{
+  "version": 4,
+  "train": "community",
+  "script": {
+    "version": "1.0.0",
+    "changeLog": "Initial script."
+  },
+  "requirements": {
+    "locations": ["ApplicationsPerformance", "Movies", "Shows", "Music", "Videos"],
+    "specifications": ["2CORE", "2GBRAM", "2GB"],
+    "permissions": ["READ_WRITE_LOCATIONS"],
+    "ports": [30013]
+  },
+  "installation_questions": [
+    {
+      "key": "publish_server_url",
+      "question": "Published server URL",
+      "type": "text",
+      "default": "",
+      "required": false,
+      "placeholder": "http://192.168.1.10:30013",
+      "description": "Optional. The address Jellyfin tells clients to use, for example when you reach it through a domain or reverse proxy. Leave empty to let Jellyfin decide."
+    }
+  ],
+  "ensure_directories_exists": [
+    {
+      "path": "$LOCATION(ApplicationsPerformance)/jellyfin/config",
+      "owner": { "user": "apps", "group": "apps" },
+      "snapshot": { "id": "config" }
+    }
+  ],
+  "app_values": {
+    "TZ": "$TIMEZONE",
+    "jellyfin": {
+      "publish_server_url": "$QUESTION(publish_server_url)"
+    },
+    "run_as": {
+      "user": 568,
+      "group": 568
+    },
+    "network": {
+      "web_port": {
+        "bind_mode": "published",
+        "port_number": 30013
+      },
+      "https_port": {
+        "bind_mode": ""
+      }
+    },
+    "storage": {
+      "config": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(ApplicationsPerformance)/jellyfin/config",
+          "acl_enable": false
+        }
+      },
+      "additional_storage": [
+        {
+          "type": "host_path",
+          "read_only": false,
+          "mount_path": "/media/movies",
+          "host_path_config": { "path": "$LOCATION(Movies)", "acl_enable": false }
+        },
+        {
+          "type": "host_path",
+          "read_only": false,
+          "mount_path": "/media/shows",
+          "host_path_config": { "path": "$LOCATION(Shows)", "acl_enable": false }
+        },
+        {
+          "type": "host_path",
+          "read_only": false,
+          "mount_path": "/media/music",
+          "host_path_config": { "path": "$LOCATION(Music)", "acl_enable": false }
+        },
+        {
+          "type": "host_path",
+          "read_only": false,
+          "mount_path": "/media/videos",
+          "host_path_config": { "path": "$LOCATION(Videos)", "acl_enable": false }
+        }
+      ]
+    },
+    "resources": {
+      "limits": {
+        "cpus": "$CPUS(4)",
+        "memory": "$MEMORY(25, 4096)"
+      }
+    }
+  }
+}

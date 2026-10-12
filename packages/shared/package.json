@@ -1,0 +1,14 @@
+{
+  "name": "@hearth/shared",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Vendored copy of eshtek/hexos-shared (GPL-3.0). See UPSTREAM.md.",
+  "license": "GPL-3.0",
+  "type": "module",
+  "exports": {
+    "./*": "./*.ts"
+  },
+  "dependencies": {
+    "zod": "3.25.76"
+  }
+}

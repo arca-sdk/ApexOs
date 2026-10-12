@@ -1,0 +1,77 @@
+{
+  "version": 4,
+  "train": "community",
+  "script": {
+    "version": "1.0.0",
+    "changeLog": "Initial script."
+  },
+  "requirements": {
+    "locations": ["ApplicationsPerformance"],
+    "specifications": ["1CORE", "512MBRAM", "1GB"],
+    "permissions": ["READ_WRITE_LOCATIONS"],
+    "ports": [30032]
+  },
+  "installation_questions": [
+    {
+      "key": "admin_token",
+      "question": "Admin page token",
+      "type": "password",
+      "default": "",
+      "required": false,
+      "description": "Optional. Setting a token enables the /admin page; leave empty to keep it disabled. Note: Bitwarden apps and the web vault only work over HTTPS, so reach Vaultwarden through a reverse proxy or certificate before signing in from other devices."
+    }
+  ],
+  "ensure_directories_exists": [
+    {
+      "path": "$LOCATION(ApplicationsPerformance)/vaultwarden/data",
+      "owner": { "user": "apps", "group": "apps" },
+      "snapshot": { "id": "data" }
+    },
+    {
+      "path": "$LOCATION(ApplicationsPerformance)/vaultwarden/postgres",
+      "owner": { "user": "apps", "group": "apps" },
+      "snapshot": { "id": "postgres" }
+    }
+  ],
+  "app_values": {
+    "TZ": "$TIMEZONE",
+    "vaultwarden": {
+      "postgres_image_selector": "postgres_18_image",
+      "db_password": "$RANDOM_STRING(32)",
+      "admin_token": "$QUESTION(admin_token)"
+    },
+    "run_as": {
+      "user": 568,
+      "group": 568
+    },
+    "network": {
+      "web_port": {
+        "bind_mode": "published",
+        "port_number": 30032
+      }
+    },
+    "storage": {
+      "data": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(ApplicationsPerformance)/vaultwarden/data",
+          "acl_enable": false
+        }
+      },
+      "postgres_data": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(ApplicationsPerformance)/vaultwarden/postgres",
+          "acl_enable": false,
+          "auto_permissions": true
+        }
+      }
+    },
+    "resources": {
+      "limits": {
+        "cpus": "$CPUS(2)",
+        "memory": "$MEMORY(5, 1024)"
+      }
+    }
+  }
+}

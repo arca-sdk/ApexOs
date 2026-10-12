@@ -1,0 +1,26 @@
+{
+  "name": "@hearth/web",
+  "private": true,
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc -p . --noEmit"
+  },
+  "dependencies": {
+    "lucide-vue-next": "1.0.0",
+    "vue": "3.5.43",
+    "vue-router": "5.4.0"
+  },
+  "devDependencies": {
+    "@hearth/api-types": "workspace:*",
+    "@hearth/shared": "workspace:*",
+    "@vitejs/plugin-vue": "6.0.10",
+    "typescript": "6.0.3",
+    "vite": "8.3.4",
+    "vue-tsc": "3.3.13"
+  }
+}

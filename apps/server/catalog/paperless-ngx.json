@@ -1,0 +1,122 @@
+{
+  "version": 4,
+  "train": "community",
+  "script": {
+    "version": "1.0.0",
+    "changeLog": "Initial script."
+  },
+  "requirements": {
+    "locations": ["ApplicationsPerformance", "Documents"],
+    "specifications": ["2CORE", "4GBRAM", "5GB"],
+    "permissions": ["READ_WRITE_LOCATIONS"],
+    "ports": [30070]
+  },
+  "installation_questions": [
+    {
+      "key": "admin_user",
+      "question": "Admin username",
+      "type": "text",
+      "default": "admin",
+      "required": true,
+      "description": "Name of the first Paperless-ngx administrator account. Only used for the first installation."
+    },
+    {
+      "key": "admin_password",
+      "question": "Admin password",
+      "type": "password",
+      "default": "$RANDOM_STRING(16)",
+      "required": true,
+      "description": "Used to sign in to Paperless-ngx. Only used for the first installation; change it later in the app."
+    }
+  ],
+  "ensure_directories_exists": [
+    {
+      "path": "$LOCATION(Documents)/paperless-ngx/data",
+      "owner": { "user": "apps", "group": "apps" },
+      "snapshot": { "id": "data" }
+    },
+    {
+      "path": "$LOCATION(Documents)/paperless-ngx/media",
+      "owner": { "user": "apps", "group": "apps" }
+    },
+    {
+      "path": "$LOCATION(Documents)/paperless-ngx/consume",
+      "owner": { "user": "apps", "group": "apps" }
+    },
+    {
+      "path": "$LOCATION(Documents)/paperless-ngx/trash",
+      "owner": { "user": "apps", "group": "apps" }
+    },
+    {
+      "path": "$LOCATION(ApplicationsPerformance)/paperless-ngx/postgres",
+      "owner": { "user": "apps", "group": "apps" },
+      "snapshot": { "id": "postgres" }
+    }
+  ],
+  "app_values": {
+    "TZ": "$TIMEZONE",
+    "paperless": {
+      "postgres_image_selector": "postgres_18_image",
+      "db_password": "$RANDOM_STRING(32)",
+      "redis_password": "$RANDOM_STRING(32)",
+      "secret_key": "$RANDOM_STRING(64)",
+      "admin_user": "$QUESTION(admin_user)",
+      "admin_mail": "root@localhost",
+      "admin_password": "$QUESTION(admin_password)"
+    },
+    "run_as": {
+      "user": 568,
+      "group": 568
+    },
+    "network": {
+      "web_port": {
+        "bind_mode": "published",
+        "port_number": 30070
+      }
+    },
+    "storage": {
+      "data": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(Documents)/paperless-ngx/data",
+          "acl_enable": false
+        }
+      },
+      "media": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(Documents)/paperless-ngx/media",
+          "acl_enable": false
+        }
+      },
+      "consume": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(Documents)/paperless-ngx/consume",
+          "acl_enable": false
+        }
+      },
+      "trash": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(Documents)/paperless-ngx/trash",
+          "acl_enable": false
+        }
+      },
+      "postgres_data": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(ApplicationsPerformance)/paperless-ngx/postgres",
+          "acl_enable": false,
+          "auto_permissions": true
+        }
+      }
+    },
+    "resources": {
+      "limits": {
+        "cpus": "$CPUS(4)",
+        "memory": "$MEMORY(25, 4096)"
+      }
+    }
+  }
+}

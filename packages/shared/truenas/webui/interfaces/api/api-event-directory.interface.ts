@@ -1,0 +1,45 @@
+import type { FailoverStatus } from '../../enums/failover-status.enum';
+import type { Alert } from '../../interfaces/alert.interface';
+import type { ChartRelease, ChartReleaseStats } from '../../interfaces/chart-release.interface';
+import type { PullContainerImageResponse, PullContainerImageParams, ContainerImage } from '../../interfaces/container-image.interface';
+import type { DirectoryServicesState } from '../../interfaces/directory-services-state.interface';
+import type { FailoverDisabledReasonEvent } from '../../interfaces/failover-disabled-reasons.interface';
+import type { Group } from '../../interfaces/group.interface';
+import type { Job } from '../../interfaces/job.interface';
+import type { KubernetesStatusData } from '../../interfaces/kubernetes-status-data.interface';
+import type { Pool } from '../../interfaces/pool.interface';
+import type { ReportingRealtimeUpdate } from '../../interfaces/reporting.interface';
+import type { PoolScan } from '../../interfaces/resilver-job.interface';
+import type { Service } from '../../interfaces/service.interface';
+import type { SmartTestProgressUpdate } from '../../interfaces/smart-test-progress.interface';
+import type { Disk } from '../../interfaces/storage.interface';
+import type { TrueCommandConfig } from '../../interfaces/true-command-config.interface';
+import type { User } from '../../interfaces/user.interface';
+import type { VirtualMachine } from '../../interfaces/virtual-machine.interface';
+import type { ZfsSnapshot } from '../../interfaces/zfs-snapshot.interface';
+import type { SystemHealth } from '../system-health.interface';
+
+export interface ApiEventDirectory {
+    'alert.list': { response: Alert };
+    'chart.release.query': { response: ChartRelease };
+    'chart.release.statistics': { response: { id: string; stats: ChartReleaseStats } };
+    'core.get_jobs': { response: Job };
+    'directoryservices.status': { response: DirectoryServicesState };
+    'failover.status': { response: { status: FailoverStatus } };
+    'failover.disabled.reasons': { response: FailoverDisabledReasonEvent };
+    'service.query': { response: Service };
+    'truecommand.config': { response: TrueCommandConfig };
+    'vm.query': { response: VirtualMachine };
+    'zfs.snapshot.query': { response: ZfsSnapshot };
+    'zfs.pool.scan': { response: PoolScan };
+    'user.query': { response: User };
+    'container.image.pull': { response: Job<PullContainerImageResponse, PullContainerImageParams> };
+    'disk.query': { response: Disk };
+    'pool.query': { response: Pool };
+    'group.query': { response: Group };
+    'container.image.query': { response: ContainerImage };
+    'reporting.realtime': { response: ReportingRealtimeUpdate };
+    'smart.test.progress': { response: SmartTestProgressUpdate };
+    'kubernetes.state': { response: KubernetesStatusData };
+    'system.health': { response: SystemHealth };
+}

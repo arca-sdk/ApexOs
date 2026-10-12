@@ -1,0 +1,55 @@
+{
+  "version": 4,
+  "train": "community",
+  "script": {
+    "version": "1.0.0",
+    "changeLog": "Initial script."
+  },
+  "requirements": {
+    "locations": ["ApplicationsPerformance", "Music"],
+    "specifications": ["1CORE", "512MBRAM", "200MB"],
+    "permissions": ["READ_WRITE_LOCATIONS"],
+    "ports": [30043]
+  },
+  "ensure_directories_exists": [
+    {
+      "path": "$LOCATION(ApplicationsPerformance)/navidrome/data",
+      "owner": { "user": "apps", "group": "apps" },
+      "snapshot": { "id": "data" }
+    }
+  ],
+  "app_values": {
+    "run_as": {
+      "user": 568,
+      "group": 568
+    },
+    "network": {
+      "web_port": {
+        "bind_mode": "published",
+        "port_number": 30043
+      }
+    },
+    "storage": {
+      "data": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(ApplicationsPerformance)/navidrome/data",
+          "acl_enable": false
+        }
+      },
+      "music": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(Music)",
+          "acl_enable": false
+        }
+      }
+    },
+    "resources": {
+      "limits": {
+        "cpus": "$CPUS(2)",
+        "memory": "$MEMORY(5, 1024)"
+      }
+    }
+  }
+}

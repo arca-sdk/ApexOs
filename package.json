@@ -1,0 +1,19 @@
+{
+  "name": "hearth",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Hearth: a friendly, open-source home server experience on top of TrueNAS SCALE",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @hearth/server --filter @hearth/web dev",
+    "demo": "pnpm --filter @hearth/web build && pnpm --filter @hearth/server demo",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "version": 4,
+  "train": "community",
+  "script": {
+    "version": "1.0.0",
+    "changeLog": "Initial script."
+  },
+  "requirements": {
+    "locations": ["ApplicationsPerformance", "Photos"],
+    "specifications": ["2CORE", "6GBRAM", "5GB"],
+    "permissions": ["READ_WRITE_LOCATIONS"],
+    "ports": [30041]
+  },
+  "installation_questions": [
+    {
+      "key": "db_password",
+      "question": "Database password",
+      "type": "password",
+      "default": "$RANDOM_STRING(32)",
+      "required": true,
+      "description": "Password for Immich's internal PostgreSQL database. The generated value is fine; you will not need it to sign in."
+    }
+  ],
+  "ensure_directories_exists": [
+    {
+      "path": "$LOCATION(Photos)/immich/data",
+      "owner": { "user": "apps", "group": "apps" }
+    },
+    {
+      "path": "$LOCATION(ApplicationsPerformance)/immich/postgres",
+      "owner": { "user": "apps", "group": "apps" },
+      "snapshot": { "id": "postgres" }
+    },
+    {
+      "path": "$LOCATION(ApplicationsPerformance)/immich/ml-cache",
+      "owner": { "user": "apps", "group": "apps" }
+    }
+  ],
+  "app_values": {
+    "TZ": "$TIMEZONE",
+    "immich": {
+      "postgres_image_selector": "vectorchord_18_image",
+      "db_password": "$QUESTION(db_password)",
+      "redis_password": "$RANDOM_STRING(32)"
+    },
+    "run_as": {
+      "user": 568,
+      "group": 568
+    },
+    "network": {
+      "web_port": {
+        "bind_mode": "published",
+        "port_number": 30041
+      }
+    },
+    "storage": {
+      "data": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(Photos)/immich/data",
+          "acl_enable": false
+        }
+      },
+      "ml_cache": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(ApplicationsPerformance)/immich/ml-cache",
+          "acl_enable": false
+        }
+      },
+      "postgres_data": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(ApplicationsPerformance)/immich/postgres",
+          "acl_enable": false,
+          "auto_permissions": true
+        }
+      }
+    },
+    "resources": {
+      "limits": {
+        "cpus": "$CPUS(4)",
+        "memory": "$MEMORY(30, 6144)"
+      }
+    }
+  }
+}

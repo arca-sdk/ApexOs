@@ -1,0 +1,99 @@
+{
+  "version": 4,
+  "train": "stable",
+  "script": {
+    "version": "1.0.0",
+    "changeLog": "Initial script."
+  },
+  "requirements": {
+    "locations": ["ApplicationsPerformance", "Documents"],
+    "specifications": ["2CORE", "2GBRAM", "2GB"],
+    "permissions": ["READ_WRITE_LOCATIONS"],
+    "ports": [30027]
+  },
+  "installation_questions": [
+    {
+      "key": "admin_user",
+      "question": "Admin username",
+      "type": "text",
+      "default": "admin",
+      "required": true,
+      "description": "Name of the first Nextcloud administrator account."
+    },
+    {
+      "key": "admin_password",
+      "question": "Admin password",
+      "type": "password",
+      "default": "$RANDOM_STRING(16)",
+      "required": true,
+      "description": "Used to sign in to Nextcloud. Use at least 10 characters; Nextcloud rejects weak passwords."
+    }
+  ],
+  "ensure_directories_exists": [
+    {
+      "path": "$LOCATION(ApplicationsPerformance)/nextcloud/html",
+      "owner": { "user": "www-data", "group": "www-data" },
+      "snapshot": { "id": "html" }
+    },
+    {
+      "path": "$LOCATION(ApplicationsPerformance)/nextcloud/postgres",
+      "owner": { "user": "apps", "group": "apps" },
+      "snapshot": { "id": "postgres" }
+    },
+    {
+      "path": "$LOCATION(Documents)/nextcloud/data",
+      "owner": { "user": "www-data", "group": "www-data" }
+    }
+  ],
+  "app_values": {
+    "TZ": "$TIMEZONE",
+    "nextcloud": {
+      "postgres_image_selector": "postgres_18_image",
+      "admin_user": "$QUESTION(admin_user)",
+      "admin_password": "$QUESTION(admin_password)",
+      "host": "$SERVER_LAN_IP:30027",
+      "redis_password": "$RANDOM_STRING(32)",
+      "db_password": "$RANDOM_STRING(32)",
+      "cron": {
+        "enabled": true,
+        "schedule": "*/5 * * * *"
+      }
+    },
+    "network": {
+      "web_port": {
+        "bind_mode": "published",
+        "port_number": 30027
+      }
+    },
+    "storage": {
+      "html": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(ApplicationsPerformance)/nextcloud/html",
+          "acl_enable": false
+        }
+      },
+      "data": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(Documents)/nextcloud/data",
+          "acl_enable": false
+        }
+      },
+      "postgres_data": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(ApplicationsPerformance)/nextcloud/postgres",
+          "acl_enable": false,
+          "auto_permissions": true
+        }
+      }
+    },
+    "resources": {
+      "limits": {
+        "cpus": "$CPUS(4)",
+        "memory": "$MEMORY(20, 4096)"
+      }
+    }
+  }
+}

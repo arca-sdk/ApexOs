@@ -1,0 +1,89 @@
+{
+  "version": 4,
+  "train": "stable",
+  "script": {
+    "version": "1.0.0",
+    "changeLog": "Initial script."
+  },
+  "requirements": {
+    "locations": ["ApplicationsPerformance", "Movies", "Shows", "Music", "Videos"],
+    "specifications": ["2CORE", "2GBRAM", "1GB"],
+    "permissions": ["READ_WRITE_LOCATIONS"],
+    "ports": [32400]
+  },
+  "installation_questions": [
+    {
+      "key": "claim_token",
+      "question": "Plex claim token",
+      "type": "text",
+      "default": "",
+      "required": false,
+      "placeholder": "claim-xxxxxxxxxxxxxxxxxxxx",
+      "description": "Optional. Links this server to your Plex account. Get a token at https://plex.tv/claim right before installing (tokens expire after 4 minutes). You can also sign in from the Plex web app later."
+    }
+  ],
+  "ensure_directories_exists": [
+    {
+      "path": "$LOCATION(ApplicationsPerformance)/plex/config",
+      "owner": { "user": "apps", "group": "apps" },
+      "snapshot": { "id": "config" }
+    }
+  ],
+  "app_values": {
+    "TZ": "$TIMEZONE",
+    "plex": {
+      "claim_token": "$QUESTION(claim_token)"
+    },
+    "run_as": {
+      "user": 568,
+      "group": 568
+    },
+    "network": {
+      "web_port": {
+        "bind_mode": "published",
+        "port_number": 32400
+      }
+    },
+    "storage": {
+      "config": {
+        "type": "host_path",
+        "host_path_config": {
+          "path": "$LOCATION(ApplicationsPerformance)/plex/config",
+          "acl_enable": false
+        }
+      },
+      "additional_storage": [
+        {
+          "type": "host_path",
+          "read_only": false,
+          "mount_path": "/media/movies",
+          "host_path_config": { "path": "$LOCATION(Movies)", "acl_enable": false }
+        },
+        {
+          "type": "host_path",
+          "read_only": false,
+          "mount_path": "/media/shows",
+          "host_path_config": { "path": "$LOCATION(Shows)", "acl_enable": false }
+        },
+        {
+          "type": "host_path",
+          "read_only": false,
+          "mount_path": "/media/music",
+          "host_path_config": { "path": "$LOCATION(Music)", "acl_enable": false }
+        },
+        {
+          "type": "host_path",
+          "read_only": false,
+          "mount_path": "/media/videos",
+          "host_path_config": { "path": "$LOCATION(Videos)", "acl_enable": false }
+        }
+      ]
+    },
+    "resources": {
+      "limits": {
+        "cpus": "$CPUS(4)",
+        "memory": "$MEMORY(25, 4096)"
+      }
+    }
+  }
+}
