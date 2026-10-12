@@ -7,6 +7,7 @@ import { locationRoutes } from './locations.ts';
 import { networkRoutes } from './network.ts';
 import { notificationRoutes } from './notifications.ts';
 import { poolErrorRoutes } from './pool-errors.ts';
+import { remoteAccessRoutes } from './remote-access.ts';
 import { settingsRoutes } from './settings.ts';
 import { setupRoutes } from './setup.ts';
 import { storageRoutes } from './storage.ts';
@@ -26,4 +27,5 @@ export async function registerFeatureRoutes(app: FastifyInstance, ctx: AppContex
   await notificationRoutes(app, ctx);
   await driveHealthRoutes(app, ctx);
   await networkRoutes(app, ctx);
+  await remoteAccessRoutes(app, ctx);
 }

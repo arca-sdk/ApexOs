@@ -1,7 +1,9 @@
 <script setup lang="ts">
-/** The ApexOs sign-in account (existing behaviour: change password). */
+/** The ApexOs sign-in account: password, two-factor sign-in and signed-in devices. */
 import { ref } from 'vue';
 import { ApiError, api, session } from '../../lib/api.ts';
+import SessionsCard from '../account/SessionsCard.vue';
+import TwoFactorCard from '../account/TwoFactorCard.vue';
 
 const current = ref('');
 const next = ref('');
@@ -27,29 +29,33 @@ async function changePassword() {
 </script>
 
 <template>
-  <section class="card stack" aria-labelledby="ac-h">
-    <h2 id="ac-h">Your account</h2>
-    <p class="muted small">Signed in as <strong>{{ session.username }}</strong>.</p>
-    <form class="stack" style="max-width: 360px" @submit.prevent="changePassword">
-      <input type="text" name="username" autocomplete="username" :value="session.username" hidden readonly />
-      <div class="field">
-        <label for="cur">Current password</label>
-        <input id="cur" v-model="current" type="password" autocomplete="current-password" required />
-      </div>
-      <div class="field">
-        <label for="new">New password</label>
-        <input id="new" v-model="next" type="password" autocomplete="new-password" required />
-        <span class="hint">At least 8 characters.</span>
-      </div>
-      <div class="field">
-        <label for="conf">Confirm new password</label>
-        <input id="conf" v-model="confirm" type="password" autocomplete="new-password" required />
-      </div>
-      <div class="row">
-        <button class="btn" :disabled="busy"><span v-if="busy" class="spin" />Change password</button>
-        <span v-if="pwMsg" class="badge ok" role="status">{{ pwMsg }}</span>
-      </div>
-      <p v-if="pwErr" class="callout err" role="alert">{{ pwErr }}</p>
-    </form>
-  </section>
+  <div class="stack">
+    <section class="card stack" aria-labelledby="ac-h">
+      <h2 id="ac-h">Your account</h2>
+      <p class="muted small">Signed in as <strong>{{ session.username }}</strong>.</p>
+      <form class="stack" style="max-width: 360px" @submit.prevent="changePassword">
+        <input type="text" name="username" autocomplete="username" :value="session.username" hidden readonly />
+        <div class="field">
+          <label for="cur">Current password</label>
+          <input id="cur" v-model="current" type="password" autocomplete="current-password" required />
+        </div>
+        <div class="field">
+          <label for="new">New password</label>
+          <input id="new" v-model="next" type="password" autocomplete="new-password" required />
+          <span class="hint">At least 8 characters. A long passphrase (16 or more) is best, especially if you use remote access.</span>
+        </div>
+        <div class="field">
+          <label for="conf">Confirm new password</label>
+          <input id="conf" v-model="confirm" type="password" autocomplete="new-password" required />
+        </div>
+        <div class="row">
+          <button class="btn" :disabled="busy"><span v-if="busy" class="spin" />Change password</button>
+          <span v-if="pwMsg" class="badge ok" role="status">{{ pwMsg }}</span>
+        </div>
+        <p v-if="pwErr" class="callout err" role="alert">{{ pwErr }}</p>
+      </form>
+    </section>
+    <TwoFactorCard />
+    <SessionsCard />
+  </div>
 </template>

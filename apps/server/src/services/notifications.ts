@@ -111,6 +111,8 @@ const TASK_NOTICES: Record<string, { done: (ref: string) => string; link: string
   'pool-repair': { done: (r) => `${r} repaired`, link: '/storage' },
   setup: { done: () => 'Your server is ready', link: '/' },
   'system-update': { done: () => 'TrueNAS update installed', link: '/settings' },
+  'remote-enable': { done: (r) => `${r} is on`, link: '/remote' },
+  'remote-disable': { done: (r) => `${r} is off`, link: '/remote' },
 };
 
 /** Records a notice whenever a task finishes, so results are visible after the toast is gone. */

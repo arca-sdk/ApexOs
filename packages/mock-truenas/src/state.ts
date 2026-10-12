@@ -459,6 +459,19 @@ export interface MockState {
   apps: AppState[];
   alerts: AlertState[];
   scrubTasks: ScrubTaskState[];
+  /** System → Advanced → Sysctl entries (`tunable.*`); absent in older state files. */
+  tunables?: TunableState[];
+}
+
+export interface TunableState {
+  id: number;
+  type: 'SYSCTL' | 'UDEV' | 'ZFS';
+  var: string;
+  value: string;
+  orig_value: string;
+  comment: string;
+  enabled: boolean;
+  update_initramfs: boolean;
 }
 
 // ---------------------------------------------------------------------------

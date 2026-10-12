@@ -29,6 +29,7 @@ APPS = [
     ('community', 'actual-budget'), ('community', 'vaultwarden'), ('stable', 'pihole'), ('community', 'adguard-home'),
     ('community', 'uptime-kuma'), ('community', 'audiobookshelf'), ('stable', 'aistor'), ('community', 'gitea'),
     ('community', 'homepage'), ('community', 'filebrowser'), ('community', 'tailscale'), ('stable', 'photoprism'),
+    ('community', 'cloudflared'),
 ]
 
 KEEP_SCHEMA_KEYS = ('type', 'default', 'required', 'enum', 'min', 'max', 'min_length', 'max_length', 'private',

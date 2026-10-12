@@ -15,6 +15,7 @@ export const router = createRouter({
     { path: '/apps', name: 'apps', component: () => import('./views/AppsView.vue') },
     { path: '/apps/catalog', name: 'app-catalog', component: () => import('./views/AppCatalogView.vue') },
     { path: '/settings', name: 'settings', component: () => import('./views/SettingsView.vue') },
+    { path: '/remote', name: 'remote', component: () => import('./views/RemoteAccessView.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 });

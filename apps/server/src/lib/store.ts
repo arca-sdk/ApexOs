@@ -63,6 +63,50 @@ export interface DriveHealthStore {
   dataLoss: Record<string, string>;
 }
 
+/** Two-factor sign-in for the admin account. The TOTP secret never leaves the server after enrollment. */
+export interface TwoFactorRecord {
+  /** Base32 TOTP secret. */
+  secret: string;
+  enabledAt: string;
+  /** Newest TOTP step accepted so far; codes from this step or earlier are refused (replay protection). */
+  lastUsedStep: number;
+  /** scrypt hashes of the unused recovery codes; a code's hash is removed when it is used. */
+  recoveryCodes: string[];
+}
+
+export interface SecurityState {
+  /** Bumped by "Sign out everywhere", password changes and turning on 2FA; older session cookies stop working. */
+  sessionGeneration: number;
+  /** Whether the current password looked strong when it was set; null when unknown. */
+  strongPassword: boolean | null;
+  twoFactor: TwoFactorRecord | null;
+  /** Enrollment started but not yet confirmed with a code. */
+  pendingTwoFactor: { secret: string; createdAt: string } | null;
+}
+
+/** Remote access ApexOs set up. Auth keys and tunnel tokens are not kept here (only in the TrueNAS app config). */
+export interface RemoteAccessState {
+  tailscale: {
+    appName: string;
+    hostname: string;
+    /** Subnets advertised to the tailnet ("share my home network"). */
+    routes: string[];
+    controlServer: string | null;
+    /** The IPv4 forwarding sysctl ApexOs created or changed for subnet routing; undone on Turn off. */
+    ipForwarding: { tunableId: number; created: boolean; previous: { value: string; enabled: boolean } | null } | null;
+    /** Address and name seen when the user opened ApexOs through Tailscale. */
+    tailnetIp: string | null;
+    tailnetName: string | null;
+    enabledAt: string;
+  } | null;
+  cloudflare: {
+    appName: string;
+    /** Public hostname the user configured in Cloudflare (informational). */
+    publicHostname: string | null;
+    enabledAt: string;
+  } | null;
+}
+
 export interface ApexOsState {
   version: 1;
   /** Secret used to sign session cookies. */
@@ -85,6 +129,8 @@ export interface ApexOsState {
   apps: Record<string, InstalledAppRecord>;
   notices: ApexOsNotice[];
   driveHealth: DriveHealthStore;
+  security: SecurityState;
+  remoteAccess: RemoteAccessState;
 }
 
 function defaultState(): ApexOsState {
@@ -97,6 +143,8 @@ function defaultState(): ApexOsState {
     apps: {},
     notices: [],
     driveHealth: { drives: {}, dataLoss: {} },
+    security: { sessionGeneration: 0, strongPassword: null, twoFactor: null, pendingTwoFactor: null },
+    remoteAccess: { tailscale: null, cloudflare: null },
   };
 }
 
@@ -113,8 +161,9 @@ export class StateStore {
   async load(): Promise<void> {
     try {
       const raw = JSON.parse(await readFile(this.file, 'utf8')) as Partial<ApexOsState>;
+      const defaults = defaultState();
       this.state = {
-        ...defaultState(),
+        ...defaults,
         ...raw,
         server: { ...raw.server },
         preferences: { locations: {}, ...raw.preferences },
@@ -122,6 +171,8 @@ export class StateStore {
         apps: { ...raw.apps },
         notices: raw.notices ?? [],
         driveHealth: { drives: { ...raw.driveHealth?.drives }, dataLoss: { ...raw.driveHealth?.dataLoss } },
+        security: { ...defaults.security, ...raw.security },
+        remoteAccess: { ...defaults.remoteAccess, ...raw.remoteAccess },
       };
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;

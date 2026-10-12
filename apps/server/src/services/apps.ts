@@ -93,7 +93,7 @@ async function findCatalogApp(ctx: AppContext, id: string, train?: string): Prom
   return app;
 }
 
-async function uniqueAppName(client: TrueNasClient, base: string): Promise<string> {
+export async function uniqueAppName(client: TrueNasClient, base: string): Promise<string> {
   const names = new Set((await client.call<TnApp[]>('app.query', [[], { select: ['name'] }])).map((a) => a.name));
   const clean = base.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '').slice(0, 36) || 'app';
   if (!names.has(clean)) return clean;
@@ -242,20 +242,48 @@ async function runInstall(ctx: AppContext, req: InstallRequest, requestedName: s
     });
   }
 
-  await task.step('Installing the app', async (report) => {
-    await client.job('app.create', [{ app_name: name, catalog_app: app.name, train: app.train, version: 'latest', values }], (job) =>
-      report(job.progress.percent ?? 0, job.progress.description ?? undefined),
-    );
-  });
+  await createCatalogApp(ctx, task, 'Installing the app', { name, catalogApp: app.name, train: app.train, values });
   await ctx.store.update((s) => {
     s.apps[name] = record;
   });
-  invalidateCatalog();
-  ctx.bus.changed('apps');
   ctx.bus.changed('locations');
 }
 
-function appState(state: string): AppState {
+/**
+ * `app.create` for a catalog app with explicit values, run as a task step. `train` must be given:
+ * TrueNAS defaults to `stable`, and many apps live in `community`.
+ */
+export async function createCatalogApp(
+  ctx: AppContext,
+  task: TaskContext,
+  stepName: string,
+  app: { name: string; catalogApp: string; train: string; values: Record<string, unknown> },
+): Promise<void> {
+  await task.step(stepName, (report) =>
+    ctx.truenas
+      .client()
+      .job('app.create', [{ app_name: app.name, catalog_app: app.catalogApp, train: app.train, version: 'latest', values: app.values }], (job) =>
+        report(job.progress.percent ?? 0, job.progress.description ?? undefined),
+      ),
+  );
+  invalidateCatalog();
+  ctx.bus.changed('apps');
+}
+
+/** `app.delete` as a task step; `removeVolumes` also deletes the app's ixVolumes (data TrueNAS created for it). */
+export async function deleteApp(ctx: AppContext, task: TaskContext, stepName: string, name: string, removeVolumes: boolean): Promise<void> {
+  await task.step(stepName, (report) =>
+    ctx.truenas
+      .client()
+      .job('app.delete', [name, { remove_images: true, remove_ix_volumes: removeVolumes }], (job) =>
+        report(job.progress.percent ?? 0, job.progress.description ?? undefined),
+      ),
+  );
+  invalidateCatalog();
+  ctx.bus.changed('apps');
+}
+
+export function appState(state: string): AppState {
   const map: Record<string, AppState> = { RUNNING: 'running', STOPPED: 'stopped', DEPLOYING: 'deploying', CRASHED: 'crashed', STOPPING: 'stopping' };
   return map[state] ?? 'unknown';
 }
@@ -394,11 +422,7 @@ export async function startUninstall(ctx: AppContext, name: string, removeData: 
     { type: 'app-uninstall', title: `Uninstalling ${displayName(app)}`, ref: displayName(app), steps: removeData ? ['Removing the app', 'Removing app data'] : ['Removing the app'] },
     async (task) => {
       const client = ctx.truenas.client();
-      await task.step('Removing the app', (report) =>
-        client.job('app.delete', [name, { remove_images: true, remove_ix_volumes: removeData }], (job) =>
-          report(job.progress.percent ?? 0, job.progress.description ?? undefined),
-        ),
-      );
+      await deleteApp(ctx, task, 'Removing the app', name, removeData);
       const record = ctx.store.get().apps[name];
       if (removeData && record) {
         await task.step('Removing app data', async () => {

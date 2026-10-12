@@ -76,11 +76,39 @@ be closed and reopened mid-operation; finished tasks also produce a notification
 | Location | A folder (or sub-folder such as `Media/Movies`) recorded in ApexOs's preferences; created on first use on the most suitable pool (SSD for apps, largest HDD pool for content). |
 | App | TrueNAS catalog app (`app.create` with `values` produced by an install script, or TrueNAS defaults). App data lives in host-path datasets created with the `APPS` preset (uid 568 can write). |
 | Restore point | `pool.snapshot.create` before updates for directories the script marks; 3 newest kept. |
+| Remote access: Tailscale | Catalog app `tailscale`, train `community` (`app.create` defaults to `stable`, so the train is always sent). Values: `tailscale.{hostname, auth_key, auth_once: true, userspace: false, accept_dns: false, advertise_routes, extra_args}` (`--login-server=` for Headscale), `network.host_network: true`. The schema is re-read with `catalog.get_app_details` before every install. Subnet routing adds a `SYSCTL` tunable `net.ipv4.ip_forward=1` (`tunable.create`, removed or restored on Turn off). Turn off = `app.delete` with `remove_ix_volumes` (drops the node identity). |
+| Remote access: Cloudflare Tunnel | Catalog app `cloudflared`, train `community`, values `cloudflared.tunnel_token`, `network.host_network: false` (the tunnel reaches ApexOs at the LAN address). |
 
 ## Security notes
 
-- The ApexOs UI has a single admin account (scrypt-hashed password, HMAC-signed session cookie,
-  `SameSite=Strict`). Share users can't sign in to ApexOs.
+- The ApexOs UI has a single admin account (scrypt-hashed password). Share users can't sign in to ApexOs.
+- **Sessions.** Stateless HMAC-SHA256-signed cookie `username|expiry|generation` (`HttpOnly`,
+  `SameSite=Strict`, 7 days; `Secure` with `APEXOS_SECURE_COOKIES=1` or when the request arrived over
+  HTTPS, including `X-Forwarded-Proto: https`). A request is authenticated only if the generation matches
+  `security.sessionGeneration`; *Sign out everywhere*, password changes and enabling 2FA bump it.
+- **Two-factor sign-in** (`lib/totp.ts`, `services/two-factor.ts`). RFC 6238 TOTP on `node:crypto`
+  (HMAC-SHA1, 30 s, 6 digits, ±1 step, constant-time comparison of every candidate). The newest accepted
+  step is stored and codes at or before it are refused (replay protection). The 160-bit base32 secret
+  lives only in `state.json`. Ten recovery codes (~50 bits each) are stored as scrypt hashes and removed
+  when used. Enrollment only activates after one correct code; disabling needs password + code and is
+  refused while Cloudflare Tunnel is on. The QR code for the `otpauth://` URI is drawn by a small built-in
+  encoder (`lib/qr.ts`).
+- **Sign-in flow.** `POST /api/auth/login` checks the password (always running scrypt, also for unknown
+  usernames, and comparing the username in constant time). With 2FA on it returns a challenge token
+  signed with a key derived from the session secret (so it can never pass as a session cookie), bound to
+  the username and session generation, valid 5 minutes and 5 code attempts, single use.
+  `POST /api/auth/login/verify` takes the challenge and a code.
+- **Attempt limiting** (`lib/rate-limit.ts`). Per client address: 5 free failures, then each failure
+  doubles a lockout (1 s … 15 min; HTTP 429 with `Retry-After`); forgotten an hour after the last failure or
+  on a complete sign-in. Password and code failures share the counter (also for password changes and
+  turning 2FA off). Credential checks run one at a time right after the limit check, so parallel guesses
+  can't slip past the limit and concurrent requests can't both use one code. In-memory only.
+- **Remote access** never routes traffic through the ApexOs project: Tailscale and Cloudflare Tunnel run
+  as TrueNAS apps with the user's own credentials, which go into the app configuration only (deleted with
+  the app). TrueNAS hides the `tailscale0` interface from `interface.query`, so the tailnet address is
+  learned from requests that arrive from 100.64.0.0/10.
+- `state.json` (0600, directory 0700) holds the TrueNAS API key, the session secret and the TOTP secret;
+  it must stay private.
 - The filesystem ACL is deliberately broad (the share ACL is the gate). Local shell users on the NAS
   could therefore read folder contents; ApexOs creates share users without a shell.
-- Serve ApexOs over HTTPS if it is reachable from outside your LAN.
+- Serve ApexOs over HTTPS if it is reachable from outside your LAN other than through Tailscale.

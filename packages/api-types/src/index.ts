@@ -881,3 +881,171 @@ export interface VlanCreateRequest {
 
 /** Step a network task adds when it had to put the previous settings back (the task then fails). */
 export type NetworkRestoreStep = 'Restoring your previous settings';
+
+// --- Remote access & 2FA ---
+// Two-factor sign-in (TOTP, RFC 6238) for the ApexOs admin account, session controls, and remote
+// access through services the user runs or owns (Tailscale, Cloudflare Tunnel, their own VPN/proxy).
+
+/**
+ * POST /api/auth/login { username, password }. When two-factor sign-in is on, the password step
+ * returns a short-lived challenge to send with the code to /api/auth/login/verify.
+ * Errors: 401 INVALID_CREDENTIALS, 429 RATE_LIMITED (with a Retry-After header).
+ */
+export type LoginResponse = { ok: true } | { ok: false; twoFactorRequired: true; challenge: string; expiresAt: string };
+
+/** POST /api/auth/login/verify. `code` is a 6-digit authenticator code or a recovery code. */
+export interface LoginVerifyRequest {
+  challenge: string;
+  code: string;
+}
+
+/** Errors: 401 INVALID_CODE, 401 CHALLENGE_EXPIRED (start again with the password), 429 RATE_LIMITED. */
+export interface LoginVerifyResponse {
+  ok: true;
+  recoveryCodeUsed: boolean;
+  recoveryCodesLeft: number;
+}
+
+/** GET /api/auth/security */
+export interface AccountSecurity {
+  twoFactor: {
+    enabled: boolean;
+    enabledAt: string | null;
+    recoveryCodesLeft: number;
+  };
+  /** Whether the password looked strong when it was set; null when it was set before ApexOs checked. */
+  strongPassword: boolean | null;
+  /** APEXOS_SECURE_COOKIES=1 is set. */
+  secureCookies: boolean;
+  /** This request arrived over HTTPS (directly, or through a proxy that says so). */
+  https: boolean;
+}
+
+/** POST /api/auth/2fa/setup → a new secret to add to an authenticator app. Nothing changes until it is confirmed. */
+export interface TwoFactorSetup {
+  /** Base32 secret, for typing in by hand. */
+  secret: string;
+  otpauthUri: string;
+  issuer: string;
+  account: string;
+  /** QR code of `otpauthUri`: `size` modules square, SVG path data in module units (add a 4-module light margin). */
+  qr: { size: number; path: string };
+}
+
+/** POST /api/auth/2fa/enable { code } → RecoveryCodesResponse. Other browsers are signed out. Errors: 400 INVALID_CODE, 409 SETUP_EXPIRED. */
+export interface TwoFactorEnableRequest {
+  code: string;
+}
+
+/** Shown once; only hashes are kept. */
+export interface RecoveryCodesResponse {
+  recoveryCodes: string[];
+}
+
+/** POST /api/auth/2fa/disable → { ok: true }. `code` may be a recovery code. Errors: 400 INVALID_CREDENTIALS / INVALID_CODE, 409 REMOTE_ACCESS_ON. */
+export interface TwoFactorDisableRequest {
+  password: string;
+  code: string;
+}
+
+/** POST /api/auth/2fa/recovery-codes { code } → RecoveryCodesResponse (replaces all unused codes). */
+export interface RecoveryCodesRequest {
+  code: string;
+}
+
+// DELETE /api/auth/2fa/setup → { ok: true } (cancels an unfinished enrollment)
+// POST /api/auth/sign-out-everywhere → { ok: true } (every session ends, including this one)
+
+export type RemoteMethodId = 'tailscale' | 'cloudflare';
+
+/** `missing`: ApexOs set it up but the app has since been removed (e.g. from the TrueNAS UI). */
+export type RemoteAppState = AppState | 'missing';
+
+export interface SecurityCheckItem {
+  id: 'two-factor' | 'password' | 'secure-cookies';
+  /** null = can't tell. */
+  ok: boolean | null;
+  title: string;
+  detail: string;
+}
+
+export interface TailscaleStatus {
+  /** ApexOs set Tailscale up and remembers it. */
+  enabled: boolean;
+  /** A Tailscale app ApexOs didn't set up is installed (ApexOs leaves it alone). */
+  external: boolean;
+  appName: string | null;
+  state: RemoteAppState | null;
+  /** Machine name in the tailnet (from the app's configuration). */
+  hostname: string | null;
+  /** Machine name suggested for a new setup (the server name). */
+  suggestedHostname: string;
+  routes: string[];
+  /** The home network "share my home network" would advertise, e.g. 192.168.1.0/24. */
+  homeNetwork: string | null;
+  controlServer: string | null;
+  /** The server's 100.x address. Known only once ApexOs has been opened through Tailscale. */
+  tailnetIp: string | null;
+  /** Full MagicDNS name (e.g. `homeserver.tail1234.ts.net`), when seen. */
+  tailnetName: string | null;
+  /** ApexOs address for tailnet devices, e.g. http://homeserver:8080 (needs MagicDNS) or the 100.x address. */
+  remoteUrl: string | null;
+  /** File-share address for tailnet devices, e.g. \\homeserver */
+  filesAddress: string | null;
+  appVersion: string | null;
+  enabledAt: string | null;
+}
+
+/** POST /api/remote/tailscale → TaskStarted (task type `remote-enable`). Errors: 409 TWO_FACTOR_RECOMMENDED / ALREADY_INSTALLED / NO_APPS_POOL. */
+export interface TailscaleEnableRequest {
+  /** Auth key from the user's own Tailscale (or Headscale) account. Passed to TrueNAS, never stored by ApexOs. */
+  authKey: string;
+  /** Machine name: lowercase letters, numbers and dashes. */
+  hostname: string;
+  /** Advertise the home network as a subnet route (needs approval in the Tailscale admin console). */
+  shareHomeNetwork: boolean;
+  /** Self-hosted coordination server (Headscale), https URL. */
+  controlServer?: string | null;
+  /** Required while two-factor sign-in is off. */
+  acceptWithoutTwoFactor?: boolean;
+}
+
+export interface CloudflareStatus {
+  enabled: boolean;
+  external: boolean;
+  appName: string | null;
+  state: RemoteAppState | null;
+  publicHostname: string | null;
+  /** What to enter as the tunnel's service URL in Cloudflare, e.g. http://192.168.1.20:8080 */
+  serviceUrl: string | null;
+  appVersion: string | null;
+  enabledAt: string | null;
+}
+
+/** POST /api/remote/cloudflare → TaskStarted. Errors: 409 TWO_FACTOR_REQUIRED / ALREADY_INSTALLED / NO_APPS_POOL, 400 VALIDATION. */
+export interface CloudflareEnableRequest {
+  /** Tunnel token from the user's Cloudflare account. Passed to TrueNAS, never stored by ApexOs. */
+  token: string;
+  /** Public hostname set up for the tunnel in Cloudflare, e.g. nas.example.com (informational). */
+  publicHostname?: string | null;
+}
+
+// DELETE /api/remote/tailscale, DELETE /api/remote/cloudflare → TaskStarted (task type `remote-disable`):
+// removes the app and its internal data (node identity, tunnel connection); nothing secret is kept.
+
+/** GET /api/remote */
+export interface RemoteAccessStatus {
+  /** ApexOs on the home network, e.g. http://192.168.1.20:8080 */
+  localUrl: string | null;
+  lanIp: string | null;
+  port: number;
+  /** How the browser asking is connected right now. */
+  connectedVia: 'tailscale' | 'cloudflare' | 'proxy' | 'direct';
+  /** Apps can be installed (an apps pool is set up and Docker runs). */
+  appsReady: boolean;
+  appsMessage: string | null;
+  twoFactorEnabled: boolean;
+  checklist: SecurityCheckItem[];
+  tailscale: TailscaleStatus;
+  cloudflare: CloudflareStatus;
+}

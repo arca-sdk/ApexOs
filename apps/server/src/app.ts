@@ -8,12 +8,13 @@ import type { ChangeTopic, MetricsSample } from '@apexos/api-types';
 import type { Bus } from './lib/bus.ts';
 import type { HostCommands } from './lib/host.ts';
 import type { InstallScript } from './lib/install-script.ts';
-import { SESSION_COOKIE, SESSION_TTL_MS, createSessionToken, hashPassword, readSessionToken, verifyPassword } from './lib/auth.ts';
+import { SESSION_COOKIE, hashPassword, isStrongPassword, readSessionToken } from './lib/auth.ts';
 import { UserError, toErrorResponse } from './lib/errors.ts';
 import type { StateStore } from './lib/store.ts';
 import type { TaskManager } from './lib/tasks.ts';
 import { createApiKeyWithPassword, resolveApiUrl, toBaseUrl, type TrueNasManager } from './lib/truenas.ts';
 import { registerFeatureRoutes } from './routes/index.ts';
+import { issueSession, passwordStep } from './services/two-factor.ts';
 
 export interface AppContext {
   store: StateStore;
@@ -38,7 +39,7 @@ declare module 'fastify' {
   }
 }
 
-const PUBLIC_ROUTES = new Set(['/api/status', '/api/auth/setup', '/api/auth/login', '/api/health']);
+const PUBLIC_ROUTES = new Set(['/api/status', '/api/auth/setup', '/api/auth/login', '/api/auth/login/verify', '/api/health']);
 
 /** Maps middleware collections to the coarse topics the UI listens to. */
 const TOPIC_BY_COLLECTION: Record<string, ChangeTopic> = {
@@ -69,23 +70,16 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
 
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/api/')) return;
-    const secret = ctx.store.get().sessionSecret;
-    req.username = readSessionToken(req.cookies[SESSION_COOKIE], secret) ?? undefined;
+    const state = ctx.store.get();
+    const session = readSessionToken(req.cookies[SESSION_COOKIE], state.sessionSecret);
+    // Sessions from before "Sign out everywhere" (or a password change) carry an older generation.
+    const valid = session && state.admin && session.username === state.admin.username && session.generation === state.security.sessionGeneration;
+    req.username = valid ? session.username : undefined;
     const path = req.url.split('?')[0]!;
     if (!req.username && !PUBLIC_ROUTES.has(path)) {
       return reply.status(401).send({ error: { code: 'UNAUTHENTICATED', message: 'Please sign in' } });
     }
   });
-
-  const setSession = (reply: FastifyReply, username: string) => {
-    reply.setCookie(SESSION_COOKIE, createSessionToken(username, ctx.store.get().sessionSecret), {
-      path: '/',
-      httpOnly: true,
-      sameSite: 'strict',
-      secure: ctx.secureCookies ?? false,
-      maxAge: SESSION_TTL_MS / 1000,
-    });
-  };
 
   app.get('/api/health', async () => ({ ok: true }));
 
@@ -117,18 +111,16 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     const passwordHash = await hashPassword(body.password);
     await ctx.store.update((s) => {
       s.admin = { username: body.username, passwordHash };
+      s.security.strongPassword = isStrongPassword(body.password);
     });
-    setSession(reply, body.username);
+    issueSession(ctx, req, reply, body.username);
     return { ok: true };
   });
 
+  // Two-step when two-factor sign-in is on; the code step is POST /api/auth/login/verify (routes/remote-access.ts).
   app.post('/api/auth/login', async (req, reply) => {
-    const body = z.object({ username: z.string(), password: z.string() }).parse(req.body);
-    const admin = ctx.store.get().admin;
-    const ok = admin && admin.username === body.username && (await verifyPassword(body.password, admin.passwordHash));
-    if (!ok) throw new UserError('Incorrect username or password', 401, 'INVALID_CREDENTIALS');
-    setSession(reply, body.username);
-    return { ok: true };
+    const body = z.object({ username: z.string().max(256), password: z.string().max(1024) }).parse(req.body);
+    return passwordStep(ctx, req, reply, body);
   });
 
   app.post('/api/auth/logout', async (_req, reply) => {

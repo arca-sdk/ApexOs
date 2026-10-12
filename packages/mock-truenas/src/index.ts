@@ -18,6 +18,7 @@ import { registerPools } from './methods/pools.ts';
 import { registerServices } from './methods/services.ts';
 import { registerSmb } from './methods/smb.ts';
 import { registerSystem } from './methods/system.ts';
+import { registerTunables } from './methods/tunables.ts';
 import { normalizeLoadedState, StateStore } from './persist.ts';
 import { RpcServer } from './rpc.ts';
 import { seedScenario } from './scenario.ts';
@@ -130,6 +131,7 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
   registerFilesystem(mock);
   registerApps(mock);
   registerCron(mock);
+  registerTunables(mock);
   registerAlerts(mock);
   registerEvents(mock);
 

@@ -85,6 +85,7 @@ call `mock.save()` after direct mutations.
   mkdir, ACLs, setperm, chown, ACL templates).
 - Apps: `docker.*`, `catalog.*`, `app.*` (catalog and custom compose apps, port and host-path
   validation, `ix_volume` datasets, upgrade and rollback) and `app.image.*`.
+- `tunable.*` (sysctl tunables; create/update/delete are jobs, unknown sysctls and duplicates are refused).
 - `alert.*`; the event sources `reporting.realtime` and `app.stats` (both accept `:{"interval": n}`);
   `core.get_methods`; and CRUD events for pools, datasets, snapshots, shares, users, groups, apps,
   services and alerts.
@@ -98,7 +99,7 @@ Run `core.get_methods` for the full list. Things that are approximated:
 
 ## Catalog data
 
-`src/data/catalog.json` holds real metadata for 28 apps from the TrueNAS apps catalog,
+`src/data/catalog.json` holds real metadata for 29 apps from the TrueNAS apps catalog,
 [github.com/truenas/apps](https://github.com/truenas/apps), at commit
 `fca56f2374d13d956d3cd18491609a16d9c02020`. That data is **LGPL-3.0** (© iXsystems). Each entry
 includes titles, descriptions, versions, icons, screenshots, images, default ports and a trimmed install
@@ -109,8 +110,8 @@ python3 -I scripts/generate-catalog.py [git-ref]
 ```
 
 The current catalog no longer has `overseerr`, `jellyseerr` or `minio`, so it includes their successors:
-`seerr` (community) and MinIO's `aistor` (stable). Both the `stable` and `community` trains are preferred
-by default.
+`seerr` (community) and MinIO's `aistor` (stable). `tailscale` and `cloudflared` (both community) back
+ApexOs's remote access. Both the `stable` and `community` trains are preferred by default.
 
 ## License
 

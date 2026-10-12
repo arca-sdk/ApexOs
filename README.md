@@ -29,10 +29,12 @@ ApexOs is not affiliated with, endorsed by, or connected to Eshtek, Inc. (HexOS)
 | **Notifications & activity** | TrueNAS alerts with plain-language titles (dismissals sync back), ApexOs task results, running tasks with step-by-step progress. |
 | **Network** | Per-port DHCP or static address, gateway, DNS servers and VLANs. Changes are applied with TrueNAS's automatic rollback: if ApexOs can't reach the server afterwards, the previous settings come back by themselves. |
 | **Settings** | Server name, account password, time zone, locations, TrueNAS updates, restart/shut down, temperature unit. |
+| **Sign-in security** | Optional two-factor sign-in (authenticator app codes, 10 single-use recovery codes), failed-attempt limiting with backoff, *Sign out everywhere*. See [Two-factor sign-in](#two-factor-sign-in). |
+| **Remote access** | Reach the server from anywhere through accounts you own: Tailscale (recommended, includes file shares) or Cloudflare Tunnel (web page only), installed as TrueNAS apps; guidance for your own VPN or reverse proxy; a security checklist. No ApexOs cloud or relay. See [Remote access](#remote-access). |
 
 ### Not in this release
 Folder encryption and recovery keys, the file browser, virtual machines, Buddy-style backups,
-remote access/relay, drive certification and deep checks, memory tests, email notifications,
+a hosted relay (remote access uses your own Tailscale or Cloudflare account instead), drive certification and deep checks, memory tests, email notifications,
 translations, and app hooks/widgets.
 
 ## Try it (demo mode — no NAS needed)
@@ -78,9 +80,69 @@ anywhere else.
 | `APEXOS_PORT` / `APEXOS_HOST` | `8080` / `0.0.0.0` | Where the web UI listens |
 | `APEXOS_DATA_DIR` | `.data` | ApexOs's state (account, connection, preferences) |
 | `APEXOS_TRUENAS_URL`, `APEXOS_TRUENAS_API_KEY` | — | Pre-configure the TrueNAS connection (e.g. `wss://nas.lan/api/v25.10.0`) |
-| `APEXOS_SECURE_COOKIES` | off | Mark the session cookie `Secure` when served over HTTPS |
+| `APEXOS_SECURE_COOKIES` | off | Always mark the session cookie `Secure`. Set it when ApexOs is reached over HTTPS (it is also set automatically for requests that arrive over HTTPS). With it on, browsers only keep the cookie on HTTPS addresses, so plain `http://` sign-in on the LAN stops working. |
 | `APEXOS_DEMO`, `APEXOS_DEMO_SCENARIO` | off, `fresh` | Demo mode with the simulated TrueNAS |
 | `APEXOS_DRIVE_CHECK_INTERVAL_MS` | `600000` (10 min) | How often drive error counters are checked (pool changes also trigger a check) |
+
+## Two-factor sign-in
+
+Settings → *Your account* → *Turn on two-factor sign-in* shows a QR code (and the key as text) for any
+authenticator app that supports time-based codes (Aegis, 2FAS, Ente Auth, Google or Microsoft
+Authenticator, 1Password, Bitwarden…). Nothing changes until you confirm one code. You then get **10
+recovery codes**, shown once: each lets you sign in a single time without your phone. Signing in then
+takes two steps: password, then a 6-digit code (or a recovery code).
+
+- Codes follow RFC 6238 (HMAC-SHA1, 30-second steps, 6 digits) and are accepted one step either side for
+  clock drift. A code is never accepted twice. ApexOs implements this itself with `node:crypto`.
+- Turning it off needs your password and a current code (or a recovery code). It can't be turned off while
+  Cloudflare Tunnel is on.
+- After a correct password the browser gets a signed challenge that is valid for 5 minutes and 5 code
+  attempts. Failed passwords and codes are counted per client address: after 5 failures each further one
+  doubles a waiting period (1 s, 2 s, 4 s … up to 15 minutes). Behind a tunnel or proxy every visitor shares
+  the proxy's address, so attempts from the internet slow down everyone coming through it; sign-in from
+  your home network is unaffected.
+- *Sign out everywhere* (Settings → *Your account*) ends every session, including the current one.
+  Changing your password or turning on two-factor sign-in also ends all other sessions.
+- TrueNAS's own two-factor setting is separate. It doesn't affect ApexOs, which talks to TrueNAS with an API
+  key (TrueNAS never asks API keys for a code).
+
+**Locked out?** If you lost both your phone and your recovery codes, prove you own the server by editing
+its files: stop ApexOs, open `APEXOS_DATA_DIR/state.json`, set `"twoFactor": null` inside `"security"`,
+start ApexOs again and sign in with your password. Then turn two-factor sign-in on again.
+
+## Remote access
+
+The *Remote access* page sets up access from outside your home with services **you** sign up for. ApexOs
+runs no cloud service or relay, and none of your traffic passes through the ApexOs project.
+
+| Method | What it reaches | How ApexOs sets it up |
+|---|---|---|
+| **Tailscale** (recommended) | ApexOs, shared folders (SMB), the TrueNAS UI; optionally your whole home network | You paste an auth key from your Tailscale account (or a [Headscale](https://headscale.net) server you run). ApexOs installs the `tailscale` app from the TrueNAS **community** train with host networking, kernel networking (not userspace), the server name as machine name and your DNS settings untouched. *Share my home network* advertises your LAN (e.g. `192.168.1.0/24`) as a subnet route and makes IPv4 forwarding persistent with a TrueNAS sysctl tunable; you approve the route in the Tailscale admin console. |
+| **Cloudflare Tunnel** (web page only) | Only the ApexOs web page, at a hostname on your own domain | You paste a tunnel token from your Cloudflare account and point the tunnel's public hostname at `http://<server LAN IP>:<ApexOs port>`. ApexOs installs the `cloudflared` app (community train). File shares don't work through it, and Cloudflare caps uploads at 100 MB per request on its free plan. **Requires two-factor sign-in**, because it puts your sign-in page on the internet. |
+| **Your own VPN or reverse proxy** | Whatever you configure | Guidance only: a WireGuard/OpenVPN server on your router, or an HTTPS reverse proxy (Caddy, nginx, Traefik) in front of ApexOs. |
+
+- Enabling Tailscale while two-factor sign-in is off needs an explicit "continue anyway"; Cloudflare Tunnel
+  refuses outright.
+- Auth keys and tunnel tokens go straight into the TrueNAS app configuration; ApexOs keeps no copy.
+  *Turn off* uninstalls the app together with its internal data (for Tailscale, the server's tailnet
+  identity) and removes the forwarding tunable ApexOs created. Remove the machine or tunnel in your
+  Tailscale / Cloudflare dashboard afterwards.
+- TrueNAS doesn't report the server's Tailscale address (its interface list hides `tailscale0`), so ApexOs
+  shows the MagicDNS name (`http://<machine name>:<port>`, `\\<machine name>\<folder>`) and remembers the
+  100.x address once you have opened ApexOs through Tailscale.
+- A Tailscale or Cloudflare app installed outside ApexOs (e.g. from the TrueNAS UI) is detected and left
+  alone.
+- A security checklist on the page shows two-factor sign-in, password strength and secure cookies.
+
+## Security notes
+
+- `APEXOS_DATA_DIR/state.json` (mode 0600, in a 0700 directory) holds the TrueNAS API key, the session
+  signing secret and the two-factor secret. Keep it private and out of backups others can read. Recovery
+  codes and the password are stored only as scrypt hashes.
+- Sessions are HMAC-signed cookies (`HttpOnly`, `SameSite=Strict`, 7 days) carrying a session generation;
+  bumping the generation (Sign out everywhere, password change, enabling 2FA) voids older cookies.
+- ApexOs's own web UI is plain HTTP. Over Tailscale that is fine (WireGuard encrypts it). Anywhere else, put
+  HTTPS in front and set `APEXOS_SECURE_COOKIES=1`.
 
 ## How it works
 
