@@ -167,9 +167,17 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
 
   app.get('/api/tasks', async () => ctx.tasks.list());
 
+  // Live event streams never end on their own; end them before the server waits for open connections.
+  const streams = new Set<FastifyReply['raw']>();
+  app.addHook('preClose', async () => {
+    for (const res of streams) res.end();
+    streams.clear();
+  });
+
   app.get('/api/events', (req: FastifyRequest, reply: FastifyReply) => {
     reply.hijack();
     const res = reply.raw;
+    streams.add(res);
     res.writeHead(200, {
       'content-type': 'text/event-stream',
       'cache-control': 'no-cache, no-transform',
@@ -208,6 +216,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     ctx.truenas.on('update', onUpdate);
     ctx.truenas.on('status', onStatus);
     req.raw.on('close', () => {
+      streams.delete(res);
       clearInterval(heartbeat);
       for (const t of pendingTopics.values()) clearTimeout(t);
       ctx.tasks.off('task', onTask);
