@@ -1,4 +1,6 @@
 import { EventEmitter } from 'node:events';
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import WebSocket from 'ws';
 
 export type JobState = 'WAITING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'ABORTED';
@@ -190,6 +192,30 @@ export class TrueNasClient extends EventEmitter {
     const [current] = await this.call<Job[]>('core.get_jobs', [[['id', '=', jobId]]]);
     if (current) this.handleJob(current);
     return done;
+  }
+
+  /**
+   * Fetches a path such as the `/_download/<job>?auth_token=…` URL returned by `core.download` or
+   * `core.job_download_logs`, from the same host and over the same (TLS) transport as the websocket.
+   */
+  downloadText(path: string, timeoutMs = 30_000): Promise<string> {
+    const ws = new URL(this.options.url);
+    const url = new URL(path, `${ws.protocol === 'wss:' ? 'https:' : 'http:'}//${ws.host}`);
+    const doRequest = url.protocol === 'https:' ? httpsRequest : httpRequest;
+    return new Promise((resolve, reject) => {
+      const req = doRequest(url, { method: 'GET', rejectUnauthorized: this.options.rejectUnauthorized ?? false, timeout: timeoutMs }, (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => {
+          const body = Buffer.concat(chunks).toString('utf8');
+          if (res.statusCode === 200) resolve(body);
+          else reject(new TrueNasError(`Download failed (${res.statusCode}): ${body.slice(0, 200)}`, { errname: 'EDOWNLOAD' }));
+        });
+      });
+      req.on('timeout', () => req.destroy(new Error('Download timed out')));
+      req.on('error', (err) => reject(new TrueNasConnectionError(`Download failed: ${err.message}`)));
+      req.end();
+    });
   }
 
   /** Subscribe to a middleware event (e.g. `alert.list`, `app.query`). Returns an unsubscribe function. */

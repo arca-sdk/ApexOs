@@ -9,6 +9,17 @@ export interface MockConfig {
   scenario: 'fresh' | 'configured';
 }
 
+export interface CronJobState {
+  id: number;
+  enabled: boolean;
+  stdout: boolean;
+  stderr: boolean;
+  schedule: { minute: string; hour: string; dom: string; month: string; dow: string };
+  command: string;
+  description: string;
+  user: string;
+}
+
 /** Runtime data that is not persisted (scrub controls, tokens, boot time). */
 export interface ScrubControl {
   stop: boolean;
@@ -20,6 +31,13 @@ export class Mock {
   bootTime = Date.now();
   readonly scrubControls = new Map<number, ScrubControl>();
   readonly tokens = new Map<string, { username: string; expires: number; singleUse: boolean }>();
+  /** Cron jobs (runtime only: ApexOs creates them temporarily). */
+  readonly cronjobs = new Map<number, CronJobState>();
+  nextCronId = 1;
+  /** Single-use `/_download/<job>` tokens. */
+  readonly downloads = new Map<string, { jobId: number; expires: number }>();
+  /** Mail the middleware would have sent (e.g. cron output to the run-as user's address). */
+  readonly mailLog: { to: string; subject: string; text: string }[] = [];
 
   constructor(
     public state: MockState,

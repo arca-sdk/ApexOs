@@ -84,6 +84,8 @@ export interface DiskState {
   baseTemp: number | null;
   tempOverride: number | null;
   criticalTemp: number | null;
+  /** Simulated SMART data; undefined means healthy. */
+  smart?: SmartState;
   /** False after the drive has been pulled (failDrive(name, 'REMOVED')). */
   present: boolean;
   expiretime: number | null;
@@ -150,6 +152,19 @@ export interface PoolState {
   expand: ExpandState | null;
   autotrim: boolean;
   createdAt: number;
+  /** Files ZFS lists under "Permanent errors" in `zpool status -v` (paths, `pool/ds@snap:/path` or `<0x..>:<0x..>`). */
+  dataErrors?: string[];
+}
+
+/** What `smartctl` reports for a disk (defaults: healthy, no bad sectors). */
+export interface SmartState {
+  passed: boolean;
+  reallocatedSectors: number;
+  pendingSectors: number;
+  offlineUncorrectable: number;
+  /** NVMe media errors. */
+  mediaErrors: number;
+  powerOnHours: number;
 }
 
 export type DatasetShareType = 'GENERIC' | 'SMB' | 'APPS' | 'MULTIPROTOCOL' | 'NFS';

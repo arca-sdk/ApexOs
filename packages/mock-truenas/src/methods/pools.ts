@@ -319,6 +319,13 @@ async function runScrub(mock: Mock, pool: PoolState, job: JobControl): Promise<n
     pool.scan.state = 'FINISHED';
     pool.scan.percentage = 100;
     pool.scan.end_time = Date.now();
+    // Deleted damaged files linger as <0x..>:<0x..> object references until a scrub; files still
+    // present stay listed and count as errors found by this scrub.
+    if (pool.dataErrors?.length) {
+      pool.dataErrors = pool.dataErrors.filter((e) => !/^<0x[0-9a-f]+>:<0x[0-9a-f]+>$/i.test(e));
+      pool.scan.errors = pool.dataErrors.length;
+      if (!pool.dataErrors.length) delete pool.dataErrors;
+    }
     emitScan(mock, pool);
     clearAlert(mock, 'ScrubStarted', ['ScrubStarted', pool.name]);
     raiseAlert(mock, 'ScrubFinished', [pool.name], ['ScrubFinished', pool.name, pool.scan.end_time]);

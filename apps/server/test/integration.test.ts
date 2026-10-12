@@ -11,6 +11,7 @@ import type { AppsResponse, CatalogAppDetail, CatalogResponse, FoldersResponse, 
 import { startMockTrueNas, type MockTrueNas } from '@apexos/mock-truenas';
 import { buildApp, type AppContext } from '../src/app.ts';
 import { Bus } from '../src/lib/bus.ts';
+import { HostCommands } from '../src/lib/host.ts';
 import { loadScripts } from '../src/lib/install-script.ts';
 import { StateStore } from '../src/lib/store.ts';
 import { TaskManager } from '../src/lib/tasks.ts';
@@ -55,7 +56,15 @@ beforeAll(async () => {
   await store.load();
   const truenas = new TrueNasManager();
   await truenas.configure({ url: mock.url, auth: { type: 'apiKey', apiKey: 'test-key' } });
-  ctx = { store, truenas, tasks: new TaskManager(), bus: new Bus(), scripts: (await loadScripts(catalogDir)).scripts, demo: true };
+  ctx = {
+    store,
+    truenas,
+    tasks: new TaskManager(),
+    bus: new Bus(),
+    host: new HostCommands(truenas),
+    scripts: (await loadScripts(catalogDir)).scripts,
+    demo: true,
+  };
   recordTaskNotices(ctx);
   app = await buildApp(ctx);
 });

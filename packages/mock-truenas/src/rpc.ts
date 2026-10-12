@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { createServer, type IncomingMessage, type Server } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Duplex } from 'node:stream';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -79,10 +79,21 @@ export interface MockJob {
 export interface JobControl {
   readonly id: number;
   progress(percent: number, description?: string): void;
+  /** Appends text to the job's log file (jobs created with logs=True in the real middleware). */
+  log(text: string): void;
   /** Simulated work; scaled by the server's `jobDelayMs`. Resolves immediately once the server is closed. */
   sleep(units?: number): Promise<void>;
   /** True once the server has been closed; long-running loops should stop. */
   readonly closed: boolean;
+}
+
+export type HttpHandler = (req: IncomingMessage, res: ServerResponse, url: URL) => void;
+
+/** TrueNAS keeps the first and last 10 lines of a job log as `logs_excerpt`. */
+export function logsExcerpt(text: string): string {
+  const lines = text.split(/(?<=\n)/);
+  if (lines.length <= 20) return text;
+  return `${lines.slice(0, 10).join('')}... ${lines.length - 20} more lines ...\n${lines.slice(-10).join('')}`;
 }
 
 export interface MethodContext {
@@ -170,6 +181,9 @@ export class RpcServer {
   private activityListeners = new Set<() => void>();
   private nextJobId = 1;
   private clients = new Set<Client>();
+  private httpRoutes = new Map<string, HttpHandler>();
+  /** Job logs by job id (`core.job_download_logs`). */
+  readonly jobLogs = new Map<number, string>();
   private http?: Server;
   private wss?: WebSocketServer;
   private isClosed = false;
@@ -195,6 +209,15 @@ export class RpcServer {
 
   get closed(): boolean {
     return this.isClosed;
+  }
+
+  getJob(id: number): MockJob | undefined {
+    return this.jobs.get(id);
+  }
+
+  /** Serves `GET <prefix>...` over plain HTTP (e.g. `/_download/`). */
+  httpRoute(prefix: string, handler: HttpHandler): void {
+    this.httpRoutes.set(prefix, handler);
   }
 
   method(name: string, handler: MethodHandler): void {
@@ -270,6 +293,10 @@ export class RpcServer {
       },
       sleep: (units = 1) =>
         this.isClosed ? Promise.resolve() : new Promise((r) => setTimeout(r, this.jobDelayMs * units)),
+      log: (text) => {
+        job.logs_path = `/var/log/jobs/${job.id}.log`;
+        this.jobLogs.set(job.id, (this.jobLogs.get(job.id) ?? '') + text);
+      },
       get closed() {
         return isClosed();
       },
@@ -290,6 +317,8 @@ export class RpcServer {
         job.exc_info = { type: e.extra ? 'VALIDATION' : 'CallError', extra: e.extra, errno: e.errno, repr: e.reason };
       }
       job.time_finished = { $date: Date.now() };
+      const logs = this.jobLogs.get(job.id);
+      if (logs !== undefined) job.logs_excerpt = logsExcerpt(logs);
       this.emit('core.get_jobs', 'changed', job.id, job);
       const waiters = this.jobWaiters.get(job.id) ?? [];
       this.jobWaiters.delete(job.id);
@@ -342,7 +371,9 @@ export class RpcServer {
       } else if (req.method === 'GET' && path === '/api/boot_id') {
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(this.bootId));
       } else {
-        res.writeHead(404, { 'content-type': 'text/plain' }).end('Not found');
+        const route = [...this.httpRoutes.entries()].find(([prefix]) => path.startsWith(prefix));
+        if (route) route[1](req, res, new URL(req.url ?? '/', 'http://localhost'));
+        else res.writeHead(404, { 'content-type': 'text/plain' }).end('Not found');
       }
     });
     this.wss = new WebSocketServer({ noServer: true });

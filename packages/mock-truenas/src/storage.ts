@@ -242,6 +242,7 @@ const STATUS_DETAIL: Record<string, string> = {
   RESILVERING: 'One or more devices is currently being resilvered. The pool will continue to function, possibly in a degraded state.',
   FAILING_DEV:
     'One or more devices has experienced an unrecoverable error. An attempt was made to correct the error. Applications are unaffected.',
+  CORRUPT_DATA: 'One or more devices has experienced an error resulting in data corruption. Applications may be affected.',
 };
 
 export function poolHealth(pool: PoolState): PoolHealth {
@@ -267,11 +268,12 @@ export function poolHealth(pool: PoolState): PoolHealth {
   else if (resilvering) code = 'RESILVERING';
   else if (status === 'DEGRADED') {
     code = badStates.has('FAULTED') ? 'FAULTED_DEV_R' : badStates.has('REMOVED') ? 'REMOVED_DEV' : badStates.has('OFFLINE') ? 'OFFLINE_DEV' : 'FAULTED_DEV_R';
-  } else if (errors > 0) code = 'FAILING_DEV';
+  } else if (pool.dataErrors?.length) code = 'CORRUPT_DATA';
+  else if (errors > 0) code = 'FAILING_DEV';
   const detail = STATUS_DETAIL[code] ?? null;
   return {
     status,
-    healthy: status === 'ONLINE' && errors === 0,
+    healthy: status === 'ONLINE' && errors === 0 && !pool.dataErrors?.length,
     warning: status === 'ONLINE' && errors > 0,
     status_code: code,
     status_detail: detail,

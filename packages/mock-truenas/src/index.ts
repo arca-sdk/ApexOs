@@ -8,6 +8,7 @@ import { registerEvents } from './events.ts';
 import { registerAccounts } from './methods/accounts.ts';
 import { registerApps } from './methods/apps.ts';
 import { registerAuth } from './methods/auth.ts';
+import { registerCron } from './methods/cron.ts';
 import { registerDatasets } from './methods/datasets.ts';
 import { checkTemperatureAlert, registerDisks } from './methods/disks.ts';
 import { registerFilesystem } from './methods/filesystem.ts';
@@ -19,8 +20,9 @@ import { registerSystem } from './methods/system.ts';
 import { normalizeLoadedState, StateStore } from './persist.ts';
 import { RpcServer } from './rpc.ts';
 import { seedScenario } from './scenario.ts';
-import { freshState, type DiskState, type MockState } from './state.ts';
+import { freshState, type DiskState, type MockState, type SmartState } from './state.ts';
 import { diskByName, emitPool, findLeafByDisk, renderDisk } from './storage.ts';
+import { HEALTHY_SMART } from './host.ts';
 import { randomHex, randomString } from './util.ts';
 
 export { API_VERSIONS, CallError, callError, queryFilter, RpcServer, validationError, validationErrors } from './rpc.ts';
@@ -69,6 +71,14 @@ export interface MockTrueNas {
   setDiskTemperature(name: string, celsius: number | null): void;
   /** Hot-plugs a new disk (default: another 8 TB IronWolf) and returns its kernel name. */
   addDisk(spec?: Partial<Pick<DiskState, 'model' | 'size' | 'type' | 'rotationrate' | 'serial' | 'bus'>>): string;
+  /** Adds read/write/checksum errors to a pool member (as ZFS would after I/O or checksum failures). */
+  addDriveErrors(name: string, errors: Partial<{ read: number; write: number; checksum: number }>): void;
+  /** Overrides what smartctl reports for a disk (merged into healthy defaults). */
+  setSmart(name: string, smart: Partial<SmartState>): void;
+  /** Sets the files `zpool status -v` lists as permanently damaged for a pool (empty array clears). */
+  setDataErrors(pool: string, files: string[]): void;
+  /** Mail the simulated middleware sent (cron output to users with an e-mail address). */
+  readonly mailLog: readonly { to: string; subject: string; text: string }[];
   /** Writes the state file now (no-op without `stateFile`). */
   save(): void;
 }
@@ -105,6 +115,7 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
   registerServices(mock);
   registerFilesystem(mock);
   registerApps(mock);
+  registerCron(mock);
   registerAlerts(mock);
   registerEvents(mock);
 
@@ -202,6 +213,35 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
       mock.emit('disk.query', 'added', disk.identifier, renderDisk(state, disk, false));
       persist();
       return name;
+    },
+    addDriveErrors(name, errors) {
+      const ref = findLeafByDisk(mock.state, requireDisk(name).identifier);
+      if (!ref) throw new Error(`${name} is not part of an imported pool`);
+      ref.leaf.errors = {
+        read: ref.leaf.errors.read + (errors.read ?? 0),
+        write: ref.leaf.errors.write + (errors.write ?? 0),
+        checksum: ref.leaf.errors.checksum + (errors.checksum ?? 0),
+      };
+      emitPool(mock, ref.pool);
+      syncPoolAlerts(mock);
+      persist();
+    },
+    setSmart(name, smart) {
+      const d = requireDisk(name);
+      d.smart = { ...HEALTHY_SMART, ...d.smart, ...smart };
+      persist();
+    },
+    setDataErrors(poolName, files) {
+      const pool = mock.state.pools.find((p) => p.name === poolName);
+      if (!pool) throw new Error(`No pool named ${poolName}`);
+      if (files.length) pool.dataErrors = [...files];
+      else delete pool.dataErrors;
+      emitPool(mock, pool);
+      syncPoolAlerts(mock);
+      persist();
+    },
+    get mailLog() {
+      return mock.mailLog;
     },
     save() {
       store?.save(mock.state);

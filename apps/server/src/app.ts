@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { CollectionUpdate } from '@apexos/truenas-client';
 import type { ChangeTopic, MetricsSample } from '@apexos/api-types';
 import type { Bus } from './lib/bus.ts';
+import type { HostCommands } from './lib/host.ts';
 import type { InstallScript } from './lib/install-script.ts';
 import { SESSION_COOKIE, SESSION_TTL_MS, createSessionToken, hashPassword, readSessionToken, verifyPassword } from './lib/auth.ts';
 import { UserError, toErrorResponse } from './lib/errors.ts';
@@ -19,6 +20,8 @@ export interface AppContext {
   truenas: TrueNasManager;
   tasks: TaskManager;
   bus: Bus;
+  /** Runs allow-listed commands on the TrueNAS host (zpool, smartctl, file operations). */
+  host: HostCommands;
   /** Curated install scripts by catalog app id. */
   scripts: Map<string, InstallScript>;
   /** Serve the built web UI from this directory when set. */

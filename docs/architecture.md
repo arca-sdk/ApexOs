@@ -28,6 +28,24 @@
   TrueNAS UI show up in ApexOs; ApexOs stores only what TrueNAS can't (account, pool display names,
   location choices, which datasets an app's install script created).
 
+## Host commands
+
+A few things have no middleware API in TrueNAS 25.10: reading the list of damaged files
+(`zpool status -v`), resetting error counters (`zpool clear`), SMART data (`smartctl`), and renaming,
+copying or deleting files. For these, `apps/server/src/lib/host.ts` uses public API calls only:
+
+1. A hidden service account, `apexos_helper` (no password, no shell, no SMB), may `sudo` exactly
+   `/usr/sbin/zpool`, `/usr/sbin/smartctl`, `/usr/bin/rm`, `/usr/bin/mv` and `/usr/bin/cp`.
+2. Each command runs as a temporary, disabled cron job for that account (`cronjob.create` →
+   `cronjob.run` → `cronjob.delete`); the output is read from the job log via `core.job_download_logs`.
+3. Callers pass argv arrays. Every argument is single-quoted and only allow-listed absolute binary
+   paths are invoked, so arguments can never turn into shell syntax. Callers additionally validate
+   pool names, device names and paths before running anything destructive.
+
+Running as the helper rather than root also avoids TrueNAS mailing cron output to root's address.
+The helper account is visible in the TrueNAS UI (Credentials → Users); deleting it is harmless, ApexOs
+recreates it on next use.
+
 ## Tasks
 
 Every operation that changes the server (setup, pool changes, folder changes, app installs, updates)

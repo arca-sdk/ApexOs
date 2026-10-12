@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildApp, type AppContext } from './app.ts';
 import { Bus } from './lib/bus.ts';
+import { HostCommands } from './lib/host.ts';
 import { loadScripts } from './lib/install-script.ts';
 import { StateStore } from './lib/store.ts';
 import { TaskManager } from './lib/tasks.ts';
@@ -36,6 +37,7 @@ const ctx: AppContext = {
   truenas,
   tasks,
   bus,
+  host: new HostCommands(truenas),
   scripts,
   webDir: config.webDir,
   demo: config.demo,
