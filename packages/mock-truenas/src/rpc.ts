@@ -142,6 +142,17 @@ export const API_VERSIONS = [
 ];
 const WS_PATHS = new Set(['/api/current', '/api/v24.10', ...API_VERSIONS.map((v) => `/api/${v}`)]);
 
+/**
+ * Replies a 25.10.7 box can't send on an older API version: converting them for that version leaves an
+ * internal "not set" marker in the reply, which then fails to encode (the method itself has already run).
+ */
+const LEGACY_REPLY_FAILURES = new Set(['interface.query', 'network.configuration.config', 'network.configuration.update']);
+
+/** Only the newest version (also served as `current`) is answered without conversion. */
+function isLegacyApi(version: string): boolean {
+  return version !== 'current' && version !== API_VERSIONS.at(-1);
+}
+
 interface Subscription {
   name: string;
   stop?: () => void;
@@ -154,6 +165,8 @@ interface Client {
   subscriptions: Map<string, Subscription>;
   legacyJobs: boolean;
   localAddress: string | null;
+  /** `current` or the `vXX.YY.Z` the client connected to. */
+  apiVersion: string;
 }
 
 const UNAUTHENTICATED_METHODS = new Set([
@@ -442,6 +455,7 @@ export class RpcServer {
       subscriptions: new Map(),
       legacyJobs: true,
       localAddress: req.socket.localAddress ?? null,
+      apiVersion: new URL(req.url ?? '/', 'http://localhost').pathname.slice('/api/'.length),
     };
     this.clients.add(client);
     ws.on('close', () => {
@@ -542,6 +556,9 @@ export class RpcServer {
           throw new CallError(done.exc_info?.type === 'VALIDATION' ? 'EINVAL' : 'EFAULT', done.error ?? 'Job failed', extra, done.exc_info?.errno ?? 14);
         }
         result = done.result;
+      }
+      if (LEGACY_REPLY_FAILURES.has(method) && isLegacyApi(client.apiVersion)) {
+        throw new CallError('EFAULT', 'Object of type _NotRequired is not JSON serializable', null, 14);
       }
       reply({ result: result ?? null });
     } catch (err) {

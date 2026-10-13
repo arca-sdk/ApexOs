@@ -236,3 +236,20 @@ describe('network: reachability simulation', () => {
     expect(await again.call('interface.websocket_local_ip')).toBe('192.168.1.20');
   });
 });
+
+describe('older API versions (like a 25.10.7 box)', () => {
+  it('applies network changes but fails their replies on older versions; the newest version answers', async () => {
+    const { mock } = await setup();
+    const old = connect(mock, undefined, mock.url.replace('/api/current', '/api/v25.10.0'));
+    await old.connect();
+    await expect(old.call('network.configuration.config')).rejects.toThrow('Object of type _NotRequired is not JSON serializable');
+    await expect(old.call('interface.query')).rejects.toThrow('_NotRequired');
+    await expect(old.call('network.configuration.update', [{ hostname: 'renamed' }])).rejects.toThrow('_NotRequired');
+    expect(await old.call('pool.query')).toBeInstanceOf(Array);
+
+    const newest = connect(mock, undefined, mock.url.replace('/api/current', '/api/v25.10.5'));
+    await newest.connect();
+    expect((await newest.call<Any>('network.configuration.config')).hostname).toBe('renamed');
+    expect(await newest.call('interface.query')).toBeInstanceOf(Array);
+  });
+});

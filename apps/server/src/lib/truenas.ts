@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { randomBytes } from 'node:crypto';
 import {
+  apiBaseUrl,
   resolveApiUrl,
   TrueNasClient,
   TrueNasConnectionError,
@@ -37,6 +38,9 @@ export async function createApiKeyWithPassword(apiUrl: string, username: string,
 }
 
 export { resolveApiUrl };
+
+/** Picks the API version again before every (re)connect, since a TrueNAS update adds newer ones (see `pickApiVersion`). */
+const refreshApiUrl = (url: string) => resolveApiUrl(apiBaseUrl(url));
 
 /** Events re-emitted from the middleware so the rest of the server can react to changes. */
 export const WATCHED_EVENTS = [
@@ -75,12 +79,12 @@ export class TrueNasManager extends EventEmitter {
 
   /** Websocket URL of the active connection. */
   get url(): string | undefined {
-    return this.options?.url;
+    return this.current?.url ?? this.options?.url;
   }
 
   /** Connects with new credentials; only replaces the active client if the connection succeeds. */
   async configure(options: ConnectionOptions): Promise<void> {
-    const next = new TrueNasClient({ ...options, reconnect: true });
+    const next = new TrueNasClient({ ...options, reconnect: true, resolveUrl: refreshApiUrl });
     await next.connect();
     const previous = this.current;
     this.options = options;
@@ -100,7 +104,7 @@ export class TrueNasManager extends EventEmitter {
 
   /** Configures without failing if TrueNAS is down; the client keeps retrying in the background. */
   async configureLazy(options: ConnectionOptions): Promise<void> {
-    const next = new TrueNasClient({ ...options, reconnect: true });
+    const next = new TrueNasClient({ ...options, reconnect: true, resolveUrl: refreshApiUrl });
     this.options = options;
     this.attach(next);
     try {

@@ -86,6 +86,11 @@ export interface TrueNasClientOptions {
   /** Reconnect automatically after an established connection drops. */
   reconnect?: boolean;
   pingIntervalMs?: number;
+  /**
+   * Called before every connection attempt (including automatic reconnects) with the URL in use; the
+   * returned URL is used from then on. If it fails, the previous URL is kept.
+   */
+  resolveUrl?: (current: string) => Promise<string>;
 }
 
 export interface UploadOptions {
@@ -135,17 +140,20 @@ export class TrueNasClient extends EventEmitter {
   private closedByUser = false;
   private connecting?: Promise<void>;
   private ready = false;
+  private apiUrl: string;
 
   constructor(private readonly options: TrueNasClientOptions) {
     super();
+    this.apiUrl = options.url;
   }
 
   get isConnected(): boolean {
     return this.ready;
   }
 
+  /** Websocket URL of the current (or last) connection. */
   get url(): string {
-    return this.options.url;
+    return this.apiUrl;
   }
 
   connect(): Promise<void> {
@@ -212,7 +220,7 @@ export class TrueNasClient extends EventEmitter {
    * `core.job_download_logs`, from the same host and over the same (TLS) transport as the websocket.
    */
   downloadText(path: string, timeoutMs = 30_000): Promise<string> {
-    const ws = new URL(this.options.url);
+    const ws = new URL(this.apiUrl);
     const url = new URL(path, `${ws.protocol === 'wss:' ? 'https:' : 'http:'}//${ws.host}`);
     const doRequest = url.protocol === 'https:' ? httpsRequest : httpRequest;
     return new Promise((resolve, reject) => {
@@ -239,7 +247,7 @@ export class TrueNasClient extends EventEmitter {
    * one-time token, and never over plain HTTP to anything but loopback.
    */
   async uploadStream(opts: UploadOptions): Promise<number> {
-    assertSecureTransport(this.options.url);
+    assertSecureTransport(this.apiUrl);
     const authorization = await this.httpAuthorization();
     const url = this.httpUrl('/_upload');
     const doRequest = url.protocol === 'https:' ? httpsRequest : httpRequest;
@@ -329,7 +337,7 @@ export class TrueNasClient extends EventEmitter {
    * window, so call this right after `core.download`. The caller consumes (or destroys) the stream.
    */
   downloadStream(path: string, opts: { idleTimeoutMs?: number } = {}): Promise<IncomingMessage> {
-    assertSecureTransport(this.options.url);
+    assertSecureTransport(this.apiUrl);
     const url = this.httpUrl(path);
     const doRequest = url.protocol === 'https:' ? httpsRequest : httpRequest;
     return new Promise((resolve, reject) => {
@@ -353,7 +361,7 @@ export class TrueNasClient extends EventEmitter {
 
   /** An HTTP(S) URL on the middleware host, over the same transport as the websocket. */
   private httpUrl(path: string): URL {
-    const ws = new URL(this.options.url);
+    const ws = new URL(this.apiUrl);
     return new URL(path, `${ws.protocol === 'wss:' ? 'https:' : 'http:'}//${ws.host}`);
   }
 
@@ -382,8 +390,11 @@ export class TrueNasClient extends EventEmitter {
   }
 
   private async open(): Promise<void> {
-    assertSecureTransport(this.options.url);
-    const ws = new WebSocket(this.options.url, {
+    if (this.options.resolveUrl) {
+      this.apiUrl = await this.options.resolveUrl(this.apiUrl).catch(() => this.apiUrl);
+    }
+    assertSecureTransport(this.apiUrl);
+    const ws = new WebSocket(this.apiUrl, {
       rejectUnauthorized: this.options.rejectUnauthorized ?? false,
       handshakeTimeout: 10_000,
     });
@@ -392,7 +403,7 @@ export class TrueNasClient extends EventEmitter {
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error) => {
         ws.off('open', onOpen);
-        reject(new TrueNasConnectionError(`Cannot connect to TrueNAS at ${this.options.url}: ${err.message}`));
+        reject(new TrueNasConnectionError(`Cannot connect to TrueNAS at ${this.apiUrl}: ${err.message}`));
       };
       const onOpen = () => {
         ws.off('error', onError);
