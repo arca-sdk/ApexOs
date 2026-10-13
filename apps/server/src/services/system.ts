@@ -3,6 +3,7 @@ import type { HardwareScan, ScanCard, ScanCheck, StorageOverview, SystemSummary,
 import type { TrueNasClient } from '@apexos/truenas-client';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
+import { SharedCall } from '../lib/shared-call.ts';
 import { servernameFormat } from '../lib/validators.ts';
 import { GiB } from '../truenas/helpers.ts';
 import type { TnDockerStatus, TnSystemInfo, TnUpdateStatus } from '../truenas/types.ts';
@@ -266,22 +267,32 @@ export async function setTimezone(ctx: AppContext, timezone: string): Promise<vo
   await ctx.truenas.client().call('system.general.update', [{ timezone }]);
 }
 
-export async function getUpdateInfo(ctx: AppContext, storage?: StorageOverview): Promise<UpdateInfo> {
+/** TrueNAS's update check needs the internet (it takes about 15 s to fail without it), so its answer is reused for a while. */
+const updateCheck = new SharedCall<TnUpdateStatus>({ okMs: 5 * 60_000, failedMs: 5 * 60_000 });
+
+export function invalidateUpdateCheck(): void {
+  updateCheck.invalidate();
+}
+
+/** With `waitMs`, doesn't wait longer than that for the update check: it then reports no update (yet). */
+export async function getUpdateInfo(ctx: AppContext, storage?: StorageOverview, opts: { waitMs?: number } = {}): Promise<UpdateInfo> {
   const client = ctx.truenas.client();
+  const check = () =>
+    client.call<TnUpdateStatus>('update.status').catch((err: Error) => ({ code: 'ERROR', status: null, error: { reason: err.message } }) as TnUpdateStatus);
   const [version, status] = await Promise.all([
     client.call<string>('system.version_short'),
-    client.call<TnUpdateStatus>('update.status').catch((err: Error) => ({ code: 'ERROR', status: null, error: { reason: err.message } }) as TnUpdateStatus),
+    opts.waitMs === undefined ? updateCheck.get(check) : updateCheck.quick(check, opts.waitMs, null),
   ]);
   const supported = isSupportedVersion(version);
   const atRisk = anyPoolAtRisk(storage ?? (await getStorage(ctx)));
-  const next = status.status?.new_version ?? null;
+  const next = status?.status?.new_version ?? null;
   return {
     currentVersion: version,
     supported,
     supportNote: supported ? null : 'ApexOs supports TrueNAS SCALE 25.10 up to 26.x. Some features may not work.',
     available: next ? { version: next.version, releaseNotesUrl: next.release_notes_url } : null,
     riskWarning: atRisk ? `Pool ${atRisk.displayName} is ${atRisk.health}. Restarting now could make things worse.` : null,
-    error: status.code === 'ERROR' ? (status.error?.reason ?? 'Could not check for updates') : null,
+    error: status?.code === 'ERROR' ? (status.error?.reason ?? 'Could not check for updates') : null,
   };
 }
 

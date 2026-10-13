@@ -6,6 +6,12 @@ import { addDataset, datasetAvailable, getDataset, pathKind, removeDatasetTree, 
 import { $date, argObj, compareVersions, deepMerge, isObj, MiB, nameArg, randomHex, type Obj } from '../util.ts';
 import { setServiceState } from './services.ts';
 
+const CATALOG_CLONE_FAILED = "Failed to clone 'https://github.com/truenas/apps' repository at '/mnt/.ix-apps/truenas_catalog' destination";
+
+function offlineDelay(mock: Mock): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, mock.offline?.delayMs ?? 0));
+}
+
 const APP_NAME_RE = /^[a-z]([-a-z0-9]*[a-z0-9])?$/;
 const POPULARITY = [
   'plex',
@@ -595,6 +601,10 @@ export function registerApps(mock: Mock): void {
     await job.sleep();
     job.progress(50, 'Updating catalog repository');
     await job.sleep();
+    if (mock.offline) {
+      await offlineDelay(mock);
+      throw callError('EFAULT', CATALOG_CLONE_FAILED);
+    }
     job.progress(80, 'Caching TRUENAS catalog');
     await job.sleep();
     mock.state.catalog.synced = true;
@@ -626,7 +636,13 @@ export function registerApps(mock: Mock): void {
     mock.state.catalog.synced = true;
     return preferredCatalog(mock).map((c) => availableItem(mock, c));
   };
-  server.method('app.available', (p) => queryFilter(available(), p[0], p[1]));
+  server.method('app.available', async (p) => {
+    if (mock.offline) {
+      await offlineDelay(mock);
+      throw callError('EFAULT', CATALOG_CLONE_FAILED);
+    }
+    return queryFilter(available(), p[0], p[1]);
+  });
   server.method('app.latest', (p) =>
     queryFilter(
       [...available()].sort((a, b) => ((b.last_update as { $date: number }).$date ?? 0) - ((a.last_update as { $date: number }).$date ?? 0)),

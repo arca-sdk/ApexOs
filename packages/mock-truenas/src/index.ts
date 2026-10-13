@@ -111,6 +111,8 @@ export interface MockTrueNas {
    * change is rolled back when the check-in timeout runs out, and the server is reachable again.
    */
   cutConnectionOnNextCommit(): void;
+  /** Simulates a server without internet access (see `Mock.offline`); `null` brings it back online. */
+  setOffline(delayMs: number | null): void;
   /** Writes the state file now (no-op without `stateFile`). */
   save(): void;
   /** Runs a periodic snapshot task now, as if its schedule fired at `now` (snapshot, retention, bound replications). */
@@ -309,6 +311,9 @@ export async function startMockTrueNas(opts: MockOptions = {}): Promise<MockTrue
     },
     cutConnectionOnNextCommit() {
       mock.network.cutNextCommit = true;
+    },
+    setOffline(delayMs) {
+      mock.offline = delayMs === null ? null : { delayMs };
     },
     save() {
       store?.save(mock.state);

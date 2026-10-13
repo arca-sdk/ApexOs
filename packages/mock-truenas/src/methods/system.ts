@@ -241,7 +241,18 @@ export function registerSystem(mock: Mock): void {
     GENERAL: { name: 'General', footnote: '(Default)', description: 'Field-tested releases for general use.', available: true },
     MISSION_CRITICAL: { name: 'Mission Critical', footnote: '', description: 'Mature releases for mission-critical systems.', available: true },
   }));
-  server.method('update.status', () => updateStatus(mock));
+  server.method('update.status', async () => {
+    if (mock.offline) {
+      await new Promise((resolve) => setTimeout(resolve, mock.offline?.delayMs ?? 0));
+      return {
+        code: 'ERROR',
+        status: null,
+        error: { errname: 'ETIMEDOUT', reason: 'Connection timeout while fetching update manifest' },
+        update_download_progress: null,
+      };
+    }
+    return updateStatus(mock);
+  });
   server.method('update.available_versions', () => {
     const v = mock.state.system.update.available;
     return v ? [{ train: UPDATE_TRAIN, version: (updateStatus(mock).status as Obj).new_version }] : [];

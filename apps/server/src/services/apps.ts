@@ -12,6 +12,7 @@ import type {
 import type { TrueNasClient } from '@apexos/truenas-client';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
+import { SharedCall } from '../lib/shared-call.ts';
 import { expandString, expandValue, parseSpec, presentQuestions, resolveAnswers, ScriptError, type InstallScript, type MacroContext } from '../lib/install-script.ts';
 import type { TaskContext } from '../lib/tasks.ts';
 import type { InstalledAppRecord } from '../lib/store.ts';
@@ -20,11 +21,17 @@ import { ensureLocation, listLocations, locationDef } from './locations.ts';
 import { lanIp } from './system.ts';
 
 const APP_NAME_RE = /^[a-z]([-a-z0-9]*[a-z0-9])?$/;
-const CATALOG_TTL_MS = 60_000;
-let catalogCache: { at: number; apps: TnCatalogApp[] } | null = null;
+/**
+ * TrueNAS downloads its app catalog from GitHub. Without internet access, listing it takes minutes to fail,
+ * so a failure is remembered for a few minutes.
+ */
+const catalogCall = new SharedCall<TnCatalogApp[]>({ okMs: 60_000, failedMs: 5 * 60_000 });
+
+/** Installed apps only use the catalog for fallbacks (title, icon, newest version), so they wait this long at most. */
+export const appTimings = { catalogWaitMs: 2_000 };
 
 export function invalidateCatalog(): void {
-  catalogCache = null;
+  catalogCall.invalidate();
 }
 
 export async function getEngine(client: TrueNasClient): Promise<AppsResponse['engine']> {
@@ -35,11 +42,14 @@ export async function getEngine(client: TrueNasClient): Promise<AppsResponse['en
   return { status: status.status, pool: config.pool, description: status.description || null };
 }
 
-async function availableApps(client: TrueNasClient): Promise<TnCatalogApp[]> {
-  if (catalogCache && Date.now() - catalogCache.at < CATALOG_TTL_MS) return catalogCache.apps;
-  const apps = await client.call<TnCatalogApp[]>('app.available');
-  catalogCache = { at: Date.now(), apps };
-  return apps;
+function availableApps(client: TrueNasClient): Promise<TnCatalogApp[]> {
+  return catalogCall.get(() => client.call<TnCatalogApp[]>('app.available')).catch((err: Error) => {
+    throw new UserError(
+      `TrueNAS couldn’t load its app catalog. It downloads the catalog from GitHub, so the server needs internet access. (${err.message})`,
+      503,
+      'CATALOG_UNAVAILABLE',
+    );
+  });
 }
 
 function scriptFor(ctx: AppContext, app: Pick<TnCatalogApp, 'name' | 'train'>): InstallScript | undefined {
@@ -307,7 +317,7 @@ export async function listInstalled(ctx: AppContext): Promise<AppsResponse> {
   const [apps, ip, catalog] = await Promise.all([
     client.call<TnApp[]>('app.query'),
     lanIp(client),
-    availableApps(client).catch(() => [] as TnCatalogApp[]),
+    catalogCall.quick(() => client.call<TnCatalogApp[]>('app.available'), appTimings.catalogWaitMs, [] as TnCatalogApp[]),
   ]);
   const records = ctx.store.get().apps;
   const result: InstalledApp[] = apps.map((a) => {

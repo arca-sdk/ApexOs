@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { getDashboard } from '../services/dashboard.ts';
-import { assertRiskAcknowledged, getTimezone, getUpdateInfo, power, scanHardware, setTimezone } from '../services/system.ts';
+import { assertRiskAcknowledged, getTimezone, getUpdateInfo, invalidateUpdateCheck, power, scanHardware, setTimezone } from '../services/system.ts';
 
 export async function systemRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   app.get('/api/dashboard', async () => getDashboard(ctx));
@@ -28,6 +28,7 @@ export async function systemRoutes(app: FastifyInstance, ctx: AppContext): Promi
         await t.step('Downloading and installing', (report) =>
           ctx.truenas.client().job('update.run', [{ reboot: false }], (job) => report(job.progress.percent ?? 0, job.progress.description ?? undefined)),
         );
+        invalidateUpdateCheck();
         await t.step('Restarting', () => power(ctx, 'restart'));
       },
     );

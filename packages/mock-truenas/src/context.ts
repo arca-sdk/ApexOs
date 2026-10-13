@@ -55,6 +55,11 @@ export class Mock {
     /** Test hook: the next commit cuts clients off until the change is rolled back. */
     cutNextCommit: boolean;
   } = { snapshot: null, rollbackAt: 0, cutNextCommit: false };
+  /**
+   * Test hook: no internet access. Catalog downloads and update checks fail after `delayMs`, as on a real
+   * box (where listing the catalog takes minutes to fail and the update check about 15 seconds).
+   */
+  offline: { delayMs: number } | null = null;
 
   constructor(
     public state: MockState,
