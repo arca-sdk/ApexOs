@@ -88,6 +88,10 @@ anywhere else.
 | `APEXOS_SECURE_COOKIES` | off | Always mark the session cookie `Secure`. Set it when ApexOs is reached over HTTPS (it is also set automatically for requests that arrive over HTTPS). With it on, browsers only keep the cookie on HTTPS addresses, so plain `http://` sign-in on the LAN stops working. |
 | `APEXOS_DEMO`, `APEXOS_DEMO_SCENARIO` | off, `fresh` | Demo mode with the simulated TrueNAS |
 | `APEXOS_DRIVE_CHECK_INTERVAL_MS` | `600000` (10 min) | How often drive error counters are checked (pool changes also trigger a check) |
+| `APEXOS_NETWORK_CHECKIN_TIMEOUT` | `60` | Seconds TrueNAS waits for ApexOs to confirm a network change before undoing it |
+| `APEXOS_UPLOAD_MAX_BYTES` | 32 GiB | Largest file the file browser accepts in one upload |
+| `APEXOS_LOG_LEVEL` | `warn` | Server log level (`info` adds one line per request, `debug` more) |
+| `APEXOS_DEMO_PEER`, `APEXOS_DEMO_PEER_PORT` | off, `APEXOS_PORT + 1` | Demo mode: a second simulated TrueNAS to use as a backup destination |
 
 ## Two-factor sign-in
 
@@ -148,8 +152,6 @@ runs no cloud service or relay, and none of your traffic passes through the Apex
   bumping the generation (Sign out everywhere, password change, enabling 2FA) voids older cookies.
 - ApexOs's own web UI is plain HTTP. Over Tailscale that is fine (WireGuard encrypts it). Anywhere else, put
   HTTPS in front and set `APEXOS_SECURE_COOKIES=1`.
-| `APEXOS_UPLOAD_MAX_BYTES` | 32 GiB | Largest file the file browser accepts in one upload |
-| `APEXOS_DEMO_PEER`, `APEXOS_DEMO_PEER_PORT` | off, `APEXOS_PORT + 1` | Demo mode: a second simulated TrueNAS to use as a backup destination |
 
 ## How it works
 
