@@ -6,17 +6,19 @@
 |---|---|
 | `apps/web` | Vue 3 single-page app. Talks only to `apps/server` over `/api` (JSON) and `/api/events` (Server-Sent Events). |
 | `apps/server` | Fastify backend. Owns the single TrueNAS connection, implements every user-facing operation, tracks long operations as *tasks*, and serves the built web UI. |
-| `packages/truenas-client` | JSON-RPC 2.0 websocket client for the TrueNAS middleware (`/api/v25.10.0`): authentication, request/response, job tracking (`core.get_jobs` events), subscriptions, keepalive and reconnect. |
+| `packages/truenas-client` | JSON-RPC 2.0 websocket client for the TrueNAS middleware (`/api/v25.10.N`): authentication, request/response, job tracking (`core.get_jobs` events), subscriptions, keepalive and reconnect. |
 | `packages/mock-truenas` | Stateful in-memory simulation of the middleware for tests and demo mode. |
 | `packages/api-types` | Request/response types shared by server and web. |
 | `packages/shared` | Vendored eshtek/hexos-shared domain types (GPL-3.0). |
 
 ## Talking to TrueNAS
 
-- **Transport.** `wss://<host>/api/v25.10.0` — the version is pinned so a TrueNAS upgrade can't silently
-  change request/response shapes; `GET /api/versions` is checked first and releases older than 25.10 are
-  refused. Plain `ws://` is refused for anything but loopback because TrueNAS revokes API keys sent
-  without TLS.
+- **Transport.** `wss://<host>/api/v25.10.N`, the newest 25.10 version the server lists in `GET /api/versions`,
+  picked again before every connection attempt; releases older than 25.10 are refused. TrueNAS answers only
+  its newest version directly: older ones go through a reply converter that fails for some replies on
+  25.10.7 ("Object of type _NotRequired is not JSON serializable" for `interface.query` and
+  `network.configuration.*`). Within 25.10 newer versions only add compatible changes. Plain `ws://` is
+  refused for anything but loopback because TrueNAS revokes API keys sent without TLS.
 - **Credentials.** The user enters the TrueNAS admin password once; ApexOs logs in with
   `auth.login_ex` (`PASSWORD_PLAIN`), creates its own API key with `api_key.create`, and stores only the
   key (in `APEXOS_DATA_DIR/state.json`, mode 0600).

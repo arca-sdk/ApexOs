@@ -18,7 +18,7 @@ ApexOs is not affiliated with, endorsed by, or connected to Eshtek, Inc. (HexOS)
 
 | Area | What works |
 |---|---|
-| **Onboarding** | Create the ApexOs admin account; connect to TrueNAS with the admin password (ApexOs creates its own API key) or an existing API key. HTTPS only, API version pinned to `v25.10.0`. |
+| **Onboarding** | Create the ApexOs admin account; connect to TrueNAS with the admin password (ApexOs creates its own API key) or an existing API key. HTTPS only, using the newest 25.10 API version the server offers. |
 | **Setup wizard** | Server name and time zone → hardware scan (System / Storage / Apps / Virtualization cards: unsupported TrueNAS, low memory, USB boot drive, SMR drives, drives with existing data, unhealthy pools, missing scrub schedules) → keep, let go or import existing pools → *Recommended* (most space / balanced / most protection) or *Custom* pool layouts → review with erase/keep consents → one tracked task that re-checks every drive before erasing anything. |
 | **Storage** | Pools with capacity, protection (computed from the real vdev layout), health in plain language, live scrub / rebuild / expansion progress; unused drives; create, rename, delete (typed confirmation), *Check pool* (scrub), add a drive (RAIDZ expansion), replace a drive, add a hot spare, import a pool; risk acknowledgement when a pool is degraded. |
 | **Folders** | A folder is a ZFS dataset + SMB share. Public (guest) or private with per-user *View only* / *Full access*, storage limits, Time Machine targets, connection addresses for Mac/Windows, *Used by* tracking. |
@@ -84,7 +84,7 @@ anywhere else.
 |---|---|---|
 | `APEXOS_PORT` / `APEXOS_HOST` | `8080` / `0.0.0.0` | Where the web UI listens |
 | `APEXOS_DATA_DIR` | `.data` | ApexOs's state (account, connection, preferences) |
-| `APEXOS_TRUENAS_URL`, `APEXOS_TRUENAS_API_KEY` | — | Pre-configure the TrueNAS connection (e.g. `wss://nas.lan/api/v25.10.0`) |
+| `APEXOS_TRUENAS_URL`, `APEXOS_TRUENAS_API_KEY` | — | Pre-configure the TrueNAS connection (e.g. `wss://nas.lan/api/v25.10.0`; ApexOs switches to the newest 25.10 version on connect) |
 | `APEXOS_SECURE_COOKIES` | off | Always mark the session cookie `Secure`. Set it when ApexOs is reached over HTTPS (it is also set automatically for requests that arrive over HTTPS). With it on, browsers only keep the cookie on HTTPS addresses, so plain `http://` sign-in on the LAN stops working. |
 | `APEXOS_DEMO`, `APEXOS_DEMO_SCENARIO` | off, `fresh` | Demo mode with the simulated TrueNAS |
 | `APEXOS_DRIVE_CHECK_INTERVAL_MS` | `600000` (10 min) | How often drive error counters are checked (pool changes also trigger a check) |
