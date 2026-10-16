@@ -152,7 +152,11 @@ describe('erasing everything and starting over', () => {
     // Nothing else may change the server meanwhile.
     const blocked = await call<ErrorBody>('POST', '/api/folders', { name: 'Late' });
     expect([blocked.status, blocked.body.error.code]).toEqual([409, 'BUSY']);
+    // Not even a request that was already past its own checks when the reset began.
+    const late = () => ctx.tasks.start({ type: 'folder-move', title: 'Moving Media to SSDs' }, async () => undefined);
+    expect(late).toThrow('Wait until “Erasing everything” has finished.');
     const task = await finished(started);
+    expect(late).not.toThrow();
     expect(task.steps.map((s) => [s.name, s.status])).toEqual([
       ['Removing backups', 'success'],
       ['Removing apps', 'success'],

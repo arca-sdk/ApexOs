@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import AppLayout from './components/AppLayout.vue';
 import { refreshStatus, session } from './lib/api.ts';
 import { connectEvents, disconnectEvents, live } from './lib/events.ts';
+import { onboardingRedirect } from './router.ts';
 
 const route = useRoute();
 const router = useRouter();
@@ -39,6 +40,15 @@ watch(finishedResets, async (ids) => {
   }
   if (!session.setupComplete) await router.replace('/setup');
 });
+// A reset that finished while the page was disconnected may no longer be in the task list it gets back.
+watch(
+  () => live.connected,
+  async (connected) => {
+    if (!connected) return;
+    await refreshStatus().catch(() => undefined);
+    if (onboardingRedirect(route) === '/setup') await router.replace('/setup');
+  },
+);
 </script>
 
 <template>

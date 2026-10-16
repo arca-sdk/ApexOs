@@ -96,7 +96,8 @@ export async function startReset(ctx: AppContext, confirm: string): Promise<Task
   if (preview.blockers.length) throw new UserError(preview.blockers.map((b) => b.message).join(' '), 409, 'CANNOT_RESET');
   if (ctx.tasks.list().some((t) => t.status === 'running')) throw new UserError('Something else just started. Wait until it has finished.', 409, 'BUSY');
 
-  return ctx.tasks.start({ type: 'factory-reset', title: 'Erasing everything', steps: STEPS }, async (t) => {
+  // Exclusive: a request that passed its checks before the reset began can't start its task during it.
+  return ctx.tasks.start({ type: 'factory-reset', title: 'Erasing everything', steps: STEPS, exclusive: true }, async (t) => {
     const client = ctx.truenas.client();
     // A reset goes on past problems: what's left over is reported at the end.
     const warnings: string[] = [];
