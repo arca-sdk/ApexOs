@@ -505,6 +505,11 @@ export interface MockState {
   snapshotTasks: SnapshotTaskState[];
   /** `replication.*` tasks with their last known state. */
   replications: ReplicationTaskState[];
+  /**
+   * Whether the server has AMD's ROCm device (`/dev/kfd`), which TrueNAS reports to apps as
+   * `resources.gpus.kfd_device_exists`. Absent (older state files) means no.
+   */
+  rocmDevice?: boolean;
 }
 
 export interface TunableState {

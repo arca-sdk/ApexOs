@@ -503,14 +503,15 @@ const GPU_CHOICES: Record<string, Obj> = {
 
 /**
  * TrueNAS's `normalize_gpu_configuration` for apps whose schema has `resources.gpus`: `use_all_gpus` is
- * turned off when every usable card is NVIDIA, and NVIDIA selections for unknown or non-NVIDIA slots are dropped.
+ * turned off when every usable card is NVIDIA, NVIDIA selections for unknown or non-NVIDIA slots are dropped,
+ * and `kfd_device_exists` says whether AMD's ROCm device is there.
  */
-function normalizeGpus(config: Obj): void {
+function normalizeGpus(config: Obj, rocmDevice: boolean): void {
   const resources = config.resources;
   if (!isObj(resources) || !isObj(resources.gpus)) return;
   const gpus = resources.gpus;
   const choices = Object.values(GPU_CHOICES).filter((g) => !g.error);
-  gpus.kfd_device_exists = false;
+  gpus.kfd_device_exists = rocmDevice;
   gpus.use_all_gpus = gpus.use_all_gpus === true && !choices.every((g) => g.vendor === 'NVIDIA');
   const selection = isObj(gpus.nvidia_gpu_selection) ? gpus.nvidia_gpu_selection : {};
   for (const slot of Object.keys(selection)) if (!choices.some((g) => g.pci_slot === slot && g.vendor === 'NVIDIA')) delete selection[slot];
@@ -841,7 +842,7 @@ export function registerApps(mock: Mock): void {
           containers: {},
         };
       }
-      if (!app.custom_app) normalizeGpus(app.config);
+      if (!app.custom_app) normalizeGpus(app.config, state.rocmDevice === true);
       validateValues(mock, app, 'app_create.values');
       app.containers = newContainers(app);
       state.apps.push(app);
@@ -890,7 +891,7 @@ export function registerApps(mock: Mock): void {
       const cat = catalogOf(app);
       const merged = { ...app.config, ...structuredClone(data.values) };
       next.config = cat ? deepMerge(structuredClone(cat.default_values), merged) : merged;
-      normalizeGpus(next.config);
+      normalizeGpus(next.config, mock.state.rocmDevice === true);
     }
     validateValues(mock, next, 'app_update.values');
     app.config = next.config;

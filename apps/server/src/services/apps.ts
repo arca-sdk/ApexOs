@@ -14,9 +14,9 @@ import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { SharedCall } from '../lib/shared-call.ts';
 import { expandString, expandValue, parseSpec, presentQuestions, resolveAnswers, ScriptError, type InstallScript, type MacroContext } from '../lib/install-script.ts';
-import type { TaskContext } from '../lib/tasks.ts';
+import { errorMessage, type TaskContext } from '../lib/tasks.ts';
 import type { InstalledAppRecord } from '../lib/store.ts';
-import type { TnApp, TnCatalogApp, TnDataset, TnDockerConfig, TnDockerStatus, TnGpuValues, TnSystemInfo } from '../truenas/types.ts';
+import type { TnApp, TnCatalogApp, TnDataset, TnDockerConfig, TnDockerStatus, TnGpuChoice, TnGpuValues, TnSystemInfo } from '../truenas/types.ts';
 import { assertAppsNotMoving } from './apps-pool.ts';
 import { catalogAppUsesGpus, gpuAppValues, gpuEnabled, gpuValues, readGpus, readGpusCached } from './gpus.ts';
 import { ensureLocation, listLocations, locationDef } from './locations.ts';
@@ -212,6 +212,9 @@ async function runInstall(ctx: AppContext, req: InstallRequest, requestedName: s
   const engine = await getEngine(client);
   if (!engine.pool) throw new UserError('Apps need a storage pool. Finish server setup first.', 409, 'NO_APPS_POOL');
   const app = await findCatalogApp(ctx, req.catalogApp, req.train);
+  // Read before any folder is made, so a card that's gone stops the install before it changes anything.
+  const gpus = req.useGpu && (await catalogAppUsesGpus(client, app.name, app.train)) ? (await readGpus(client)).choices : null;
+  if (gpus && !gpus.length) throw new UserError('This server has no graphics card apps can use.', 409, 'NO_GPU');
   const script = scriptFor(ctx, app);
   const name = requestedName ?? (await uniqueAppName(client, app.name));
   const record: InstalledAppRecord = {
@@ -265,13 +268,10 @@ async function runInstall(ctx: AppContext, req: InstallRequest, requestedName: s
     });
   }
 
-  if (req.useGpu && (await catalogAppUsesGpus(client, app.name, app.train))) {
-    const { choices } = await readGpus(client);
-    if (choices.length) {
-      const resources = values.resources && typeof values.resources === 'object' ? (values.resources as Record<string, unknown>) : {};
-      values = { ...values, resources: { ...resources, gpus: gpuValues(choices, true) } };
-      values = { ...values, ...gpuAppValues(app.name, choices, true, values) };
-    }
+  if (gpus) {
+    const resources = values.resources && typeof values.resources === 'object' ? (values.resources as Record<string, unknown>) : {};
+    values = { ...values, resources: { ...resources, gpus: gpuValues(gpus, true) } };
+    values = { ...values, ...gpuAppValues(app.name, gpus, true, values) };
   }
 
   await createCatalogApp(ctx, task, 'Installing the app', { name, catalogApp: app.name, train: app.train, values });
@@ -279,6 +279,28 @@ async function runInstall(ctx: AppContext, req: InstallRequest, requestedName: s
     s.apps[name] = record;
   });
   ctx.bus.changed('locations');
+  if (gpus) await finishGpuSettings(ctx, task, name, app.name, gpus);
+}
+
+/**
+ * Settings that depend on what TrueNAS finds while installing. Immich's ROCm image needs `/dev/kfd`, and TrueNAS
+ * only reports it (`kfd_device_exists`) in the app's settings once the app exists, so with an AMD card Immich is
+ * installed with the plain image and switched here. The app is installed either way, so a failure only leaves a note.
+ */
+async function finishGpuSettings(ctx: AppContext, task: TaskContext, name: string, catalogApp: string, choices: TnGpuChoice[]): Promise<void> {
+  const client = ctx.truenas.client();
+  const config = await client.call<Record<string, unknown>>('app.config', [name]).catch(() => null);
+  if (!config) return;
+  const values = gpuAppValues(catalogApp, choices, true, config);
+  const selector = (v: unknown) => (v && typeof v === 'object' ? (v as { ml_image_selector?: unknown }).ml_image_selector : undefined);
+  if (!values.immich || selector(values.immich) === selector(config.immich)) return;
+  const step = 'Switching machine learning to the graphics card';
+  await task
+    .step(step, (report) =>
+      client.job('app.update', [name, { values }], (job) => report(job.progress.percent ?? 0, job.progress.description ?? undefined)),
+    )
+    .catch((err: Error) => task.skip(step, `Didn’t switch (${errorMessage(err)}). Turn the graphics card off and on again from the Apps page.`));
+  ctx.bus.changed('apps');
 }
 
 /**

@@ -101,6 +101,30 @@ describe('graphics cards for apps', () => {
     expect((await appNamed('emby')).gpu).toEqual({ enabled: true });
   });
 
+  it('stops an install that asks for a graphics card when none is usable any more', async () => {
+    const cards = await ctx.truenas.client().call<Record<string, unknown>>('app.gpu_choices');
+    mock.server.method('app.gpu_choices', () => ({}));
+    try {
+      const started = await ok<{ task: Task }>('POST', '/api/apps/install', { catalogApp: 'plex', train: 'stable', answers: {}, useGpu: true });
+      await expect(finished(started)).rejects.toThrow('no graphics card apps can use');
+      expect((await ok<AppsResponse>('GET', '/api/apps')).apps.some((a) => a.name === 'plex')).toBe(false);
+    } finally {
+      mock.server.method('app.gpu_choices', () => structuredClone(cards));
+    }
+  });
+
+  it('switches Immich to the AMD image once TrueNAS reports the ROCm device', async () => {
+    mock.state.rocmDevice = true;
+    try {
+      const task = await finished(await ok<{ task: Task }>('POST', '/api/apps/install', { catalogApp: 'immich', train: 'community', answers: {}, useGpu: true }));
+      expect(task.steps.map((s) => [s.name, s.status])).toContainEqual(['Switching machine learning to the graphics card', 'success']);
+      const values = await ctx.truenas.client().call<{ immich: { ml_image_selector: string } }>('app.config', ['immich']);
+      expect(values.immich.ml_image_selector).toBe('ml_rocm_image');
+    } finally {
+      mock.state.rocmDevice = false;
+    }
+  });
+
   it('refuses apps that can’t use a graphics card', async () => {
     await finished(await ok<{ task: Task }>('POST', '/api/apps/install', { catalogApp: 'syncthing', train: 'stable', answers: {}, useGpu: true }));
     expect((await config('syncthing')).resources.gpus).toBeUndefined();
