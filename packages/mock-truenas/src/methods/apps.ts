@@ -489,6 +489,34 @@ export function createIxAppsDatasets(mock: Mock, pool: string, emit = true): voi
   }
 }
 
+/** The simulated server's graphics card (an AMD APU), as `app.gpu_choices` reports it. */
+const GPU_CHOICES: Record<string, Obj> = {
+  '0000:30:00.0': {
+    vendor: 'AMD',
+    description: 'Advanced Micro Devices, Inc. [AMD/ATI] Cezanne [Radeon Vega Series / Radeon Vega Mobile Series]',
+    error: null,
+    vendor_specific_config: {},
+    gpu_details: { addr: { pci_slot: '0000:30:00.0', domain: '0000', bus: '30', slot: '00' }, available_to_host: true, vendor: 'AMD', uses_system_critical_devices: false },
+    pci_slot: '0000:30:00.0',
+  },
+};
+
+/**
+ * TrueNAS's `normalize_gpu_configuration` for apps whose schema has `resources.gpus`: `use_all_gpus` is
+ * turned off when every usable card is NVIDIA, and NVIDIA selections for unknown or non-NVIDIA slots are dropped.
+ */
+function normalizeGpus(config: Obj): void {
+  const resources = config.resources;
+  if (!isObj(resources) || !isObj(resources.gpus)) return;
+  const gpus = resources.gpus;
+  const choices = Object.values(GPU_CHOICES).filter((g) => !g.error);
+  gpus.kfd_device_exists = false;
+  gpus.use_all_gpus = gpus.use_all_gpus === true && !choices.every((g) => g.vendor === 'NVIDIA');
+  const selection = isObj(gpus.nvidia_gpu_selection) ? gpus.nvidia_gpu_selection : {};
+  for (const slot of Object.keys(selection)) if (!choices.some((g) => g.pci_slot === slot && g.vendor === 'NVIDIA')) delete selection[slot];
+  gpus.nvidia_gpu_selection = selection;
+}
+
 /** Copies `<from>/ix-apps` with everything below it to `<to>/ix-apps` (TrueNAS uses a local one-time replication). */
 function replicateIxApps(mock: Mock, from: string, to: string): void {
   const base = getDataset(mock.state, `${from}/ix-apps`);
@@ -730,16 +758,7 @@ export function registerApps(mock: Mock): void {
   server.method('app.used_host_ips', () => ({}));
   server.method('app.ip_choices', () => ({ '0.0.0.0': '0.0.0.0', '::': '::', [mock.lanIp]: mock.lanIp }));
   server.method('app.certificate_choices', () => [{ id: 1, name: 'truenas_default' }]);
-  server.method('app.gpu_choices', () => ({
-    '0000:30:00.0': {
-      vendor: 'AMD',
-      description: 'Advanced Micro Devices, Inc. [AMD/ATI] Cezanne [Radeon Vega Series / Radeon Vega Mobile Series]',
-      error: null,
-      vendor_specific_config: {},
-      gpu_details: { addr: { pci_slot: '0000:30:00.0', domain: '0000', bus: '30', slot: '00' }, available_to_host: true, vendor: 'AMD', uses_system_critical_devices: false },
-      pci_slot: '0000:30:00.0',
-    },
-  }));
+  server.method('app.gpu_choices', () => structuredClone(GPU_CHOICES));
   server.method('app.available_space', () => {
     const pool = mock.state.docker.pool;
     const ds = pool ? getDataset(mock.state, `${pool}/ix-apps`) : undefined;
@@ -822,6 +841,7 @@ export function registerApps(mock: Mock): void {
           containers: {},
         };
       }
+      if (!app.custom_app) normalizeGpus(app.config);
       validateValues(mock, app, 'app_create.values');
       app.containers = newContainers(app);
       state.apps.push(app);
@@ -864,11 +884,24 @@ export function registerApps(mock: Mock): void {
     if (app.custom_app) {
       if (typeof data.custom_compose_config_string === 'string' && data.custom_compose_config_string) next.custom_compose = data.custom_compose_config_string;
       else if (isObj(data.custom_compose_config) && Object.keys(data.custom_compose_config).length) next.config = { __compose: data.custom_compose_config };
-    } else if (isObj(data.values)) next.config = deepMerge(app.config, data.values);
+    } else if (isObj(data.values)) {
+      // Like TrueNAS (`config.update(values)`): each top-level key that is sent replaces the stored one,
+      // then defaults are filled in again for whatever is missing.
+      const cat = catalogOf(app);
+      const merged = { ...app.config, ...structuredClone(data.values) };
+      next.config = cat ? deepMerge(structuredClone(cat.default_values), merged) : merged;
+      normalizeGpus(next.config);
+    }
     validateValues(mock, next, 'app_update.values');
     app.config = next.config;
     app.custom_compose = next.custom_compose;
     ensureIxVolumes(mock, app, true);
+    // A stopped app only gets its new configuration; it stays stopped.
+    if (app.state === 'STOPPED') {
+      job.progress(60, 'Configuration updated');
+      emitApp(mock, app);
+      return renderApp(mock, app);
+    }
     await deploy(mock, app, job, [
       [30, 'Updating App configuration'],
       [70, 'Redeploying App'],

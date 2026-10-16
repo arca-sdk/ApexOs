@@ -16,8 +16,9 @@ import { SharedCall } from '../lib/shared-call.ts';
 import { expandString, expandValue, parseSpec, presentQuestions, resolveAnswers, ScriptError, type InstallScript, type MacroContext } from '../lib/install-script.ts';
 import type { TaskContext } from '../lib/tasks.ts';
 import type { InstalledAppRecord } from '../lib/store.ts';
-import type { TnApp, TnCatalogApp, TnDataset, TnDockerConfig, TnDockerStatus, TnSystemInfo } from '../truenas/types.ts';
+import type { TnApp, TnCatalogApp, TnDataset, TnDockerConfig, TnDockerStatus, TnGpuValues, TnSystemInfo } from '../truenas/types.ts';
 import { assertAppsNotMoving } from './apps-pool.ts';
+import { catalogAppUsesGpus, gpuEnabled, gpuValues, readGpus } from './gpus.ts';
 import { ensureLocation, listLocations, locationDef } from './locations.ts';
 import { lanIp } from './system.ts';
 
@@ -113,10 +114,11 @@ export async function uniqueAppName(client: TrueNasClient, base: string): Promis
 
 export async function checkRequirements(ctx: AppContext, script: InstallScript): Promise<AppRequirementsInfo> {
   const client = ctx.truenas.client();
-  const [info, usedPorts, locations] = await Promise.all([
+  const [info, usedPorts, locations, gpus] = await Promise.all([
     client.call<TnSystemInfo>('system.info'),
     client.call<number[]>('app.used_ports').catch(() => [] as number[]),
     listLocations(ctx),
+    script.requirements.specifications.some((s) => parseSpec(s).kind === 'gpu') ? readGpus(client).then((g) => g.choices) : Promise.resolve([]),
   ]);
   const locs = script.requirements.locations.map((id) => {
     const loc = locations.find((l) => l.id === id);
@@ -125,7 +127,8 @@ export async function checkRequirements(ctx: AppContext, script: InstallScript):
   });
   const specs = script.requirements.specifications.map((s) => {
     const spec = parseSpec(s);
-    const met = spec.kind === 'cores' ? info.cores >= spec.value : spec.kind === 'ram' ? info.physmem >= spec.value * 0.95 : true;
+    const met =
+      spec.kind === 'cores' ? info.cores >= spec.value : spec.kind === 'ram' ? info.physmem >= spec.value * 0.95 : spec.kind === 'gpu' ? gpus.length > 0 : true;
     return { label: spec.label, met };
   });
   const ports = script.requirements.ports ?? [];
@@ -140,15 +143,22 @@ export async function checkRequirements(ctx: AppContext, script: InstallScript):
 }
 
 export async function getCatalogApp(ctx: AppContext, id: string, train?: string): Promise<CatalogAppDetail> {
+  const client = ctx.truenas.client();
   const app = await findCatalogApp(ctx, id, train);
   const script = scriptFor(ctx, app);
+  const [requirements, suggestedName, usesGpus] = await Promise.all([
+    script ? checkRequirements(ctx, script) : null,
+    uniqueAppName(client, app.name),
+    catalogAppUsesGpus(client, app.name, app.train),
+  ]);
   return {
     ...toCatalogApp(ctx, app),
     screenshots: app.screenshots ?? [],
     sources: app.sources ?? [],
     questions: script ? presentQuestions(script) : [],
-    requirements: script ? await checkRequirements(ctx, script) : null,
-    suggestedName: await uniqueAppName(ctx.truenas.client(), app.name),
+    requirements,
+    suggestedName,
+    gpu: usesGpus ? (await readGpus(client)).summary : null,
   };
 }
 
@@ -255,6 +265,14 @@ async function runInstall(ctx: AppContext, req: InstallRequest, requestedName: s
     });
   }
 
+  if (req.useGpu && (await catalogAppUsesGpus(client, app.name, app.train))) {
+    const { choices } = await readGpus(client);
+    if (choices.length) {
+      const resources = values.resources && typeof values.resources === 'object' ? (values.resources as Record<string, unknown>) : {};
+      values = { ...values, resources: { ...resources, gpus: gpuValues(choices, true) } };
+    }
+  }
+
   await createCatalogApp(ctx, task, 'Installing the app', { name, catalogApp: app.name, train: app.train, values });
   await ctx.store.update((s) => {
     s.apps[name] = record;
@@ -315,10 +333,10 @@ function webUrl(app: TnApp, ip: string | null): string | null {
 
 export async function listInstalled(ctx: AppContext): Promise<AppsResponse> {
   const client = ctx.truenas.client();
-  const engine = await getEngine(client);
-  if (!engine.pool) return { apps: [], engine };
+  const [engine, gpus] = await Promise.all([getEngine(client), readGpus(client)]);
+  if (!engine.pool) return { apps: [], engine, gpus: gpus.summary };
   const [apps, ip, catalog] = await Promise.all([
-    client.call<TnApp[]>('app.query'),
+    client.call<TnApp[]>('app.query', [[], { extra: { retrieve_config: true } }]),
     lanIp(client),
     catalogCall.quick(() => client.call<TnCatalogApp[]>('app.available'), appTimings.catalogWaitMs, [] as TnCatalogApp[]),
   ]);
@@ -344,10 +362,45 @@ export async function listInstalled(ctx: AppContext): Promise<AppsResponse> {
       catalogApp: a.custom_app ? null : catalogName,
       train,
       locations: (record?.locations ?? []) as LocationPreferenceId[],
+      gpu: appGpus(a.config) ? { enabled: gpuEnabled(appGpus(a.config)) } : null,
     };
   });
   result.sort((a, b) => a.title.localeCompare(b.title));
-  return { apps: result, engine };
+  return { apps: result, engine, gpus: gpus.summary };
+}
+
+/** `resources.gpus` of an app's values; TrueNAS fills it in for apps that can use graphics cards. */
+function appGpus(config: Record<string, unknown> | undefined): TnGpuValues | undefined {
+  const resources = config?.resources;
+  if (!resources || typeof resources !== 'object') return undefined;
+  const gpus = (resources as Record<string, unknown>).gpus;
+  return gpus && typeof gpus === 'object' ? (gpus as TnGpuValues) : undefined;
+}
+
+/** Turns the graphics cards on or off for an installed app; the app is redeployed. */
+export async function startGpuChange(ctx: AppContext, name: string, enabled: boolean) {
+  assertAppsNotMoving(ctx);
+  const app = await requireApp(ctx, name);
+  const client = ctx.truenas.client();
+  const config = await client.call<Record<string, unknown>>('app.config', [name]);
+  const current = appGpus(config);
+  if (!current) throw new UserError(`${displayName(app)} can’t use a graphics card.`, 400, 'NO_GPU_SUPPORT');
+  const { choices } = await readGpus(client);
+  if (enabled && !choices.length) throw new UserError('This server has no graphics card apps can use.', 409, 'NO_GPU');
+  if (ctx.tasks.findRunning('app-gpu', name)) throw new UserError('This app is already being changed.', 409, 'BUSY');
+  const resources = config.resources as Record<string, unknown>;
+  return ctx.tasks.start(
+    { type: 'app-gpu', title: `Turning ${enabled ? 'on' : 'off'} the graphics card for ${displayName(app)}`, ref: name },
+    async (task) => {
+      // TrueNAS replaces each top-level key that is sent, so the whole `resources` object goes along.
+      await task.step('Updating the app', (report) =>
+        client.job('app.update', [name, { values: { resources: { ...resources, gpus: gpuValues(choices, enabled, current) } } }], (job) =>
+          report(job.progress.percent ?? 0, job.progress.description ?? undefined),
+        ),
+      );
+      ctx.bus.changed('apps');
+    },
+  );
 }
 
 async function requireApp(ctx: AppContext, name: string): Promise<TnApp> {

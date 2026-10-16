@@ -31,6 +31,7 @@ const loadError = ref<string | null>(null);
 
 const answers = reactive<Record<string, string | number | boolean>>({});
 const appName = ref('');
+const useGpu = ref(false);
 const fieldErrors = reactive<Record<string, string>>({});
 const formError = ref('');
 const submitting = ref(false);
@@ -73,6 +74,7 @@ async function load() {
     const d = await api.get<CatalogAppDetail>(`/apps/catalog/${encodeURIComponent(props.appId)}${qs}`);
     detail.value = d;
     for (const q of d.questions) answers[q.key] = initialAnswer(q);
+    useGpu.value = Boolean(d.gpu?.usable.length);
   } catch (e) {
     loadError.value = errorText(e);
   } finally {
@@ -106,6 +108,7 @@ async function install() {
     train: detail.value.train,
     answers: { ...answers },
     ...(appName.value.trim() ? { appName: appName.value.trim() } : {}),
+    ...(detail.value.gpu?.usable.length ? { useGpu: useGpu.value } : {}),
   };
   try {
     const { task: started } = await api.post<TaskStarted>('/apps/install', body);
@@ -215,6 +218,18 @@ onMounted(load);
             :error="fieldErrors[q.key]"
             :generatable="generatable(q)"
           />
+
+          <label v-if="detail.gpu?.usable.length" class="gpu-option">
+            <input v-model="useGpu" type="checkbox" />
+            <span class="stack" style="--gap: 2px">
+              <strong>Use the graphics card</strong>
+              <span class="small muted">Faster video conversion and image processing, using {{ detail.gpu.usable.join(', ') }}.</span>
+            </span>
+          </label>
+          <p v-else-if="detail.gpu?.nvidiaNeedsDriver" class="callout small">
+            {{ detail.title }} could use your NVIDIA graphics card, but that needs TrueNAS’s NVIDIA driver, which ApexOs doesn’t install. Install it in
+            TrueNAS (Apps → Configuration), then turn the graphics card on for {{ detail.title }} from your Apps page.
+          </p>
 
           <details class="advanced" :open="Boolean(fieldErrors.appName) || undefined">
             <summary>App name</summary>
@@ -337,6 +352,19 @@ onMounted(load);
   flex: none;
   margin-top: 2px;
   color: var(--info);
+}
+.gpu-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.gpu-option input {
+  margin-top: 3px;
+  flex: none;
 }
 .advanced {
   border: 1px solid var(--border);

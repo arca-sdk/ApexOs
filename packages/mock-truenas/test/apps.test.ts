@@ -198,6 +198,20 @@ describe('apps', () => {
     expect(await client.call('app.query')).toEqual([]);
   });
 
+  it('updates apps like TrueNAS: sent keys replace stored ones, defaults fill the gaps', async () => {
+    const { client } = await setup({ scenario: 'configured' });
+    const before = await client.call<Any>('app.config', ['jellyfin']);
+    await client.job('app.update', ['jellyfin', { values: { resources: { ...before.resources, limits: { cpus: 4, memory: 8192 } } } }]);
+    expect((await client.call<Any>('app.config', ['jellyfin'])).resources.limits).toEqual({ cpus: 4, memory: 8192 });
+
+    // Sending only `resources.gpus` replaces all of `resources`: the limits fall back to their defaults.
+    await client.job('app.update', ['jellyfin', { values: { resources: { gpus: { use_all_gpus: true, nvidia_gpu_selection: { '0000:30:00.0': { use_gpu: true } } } } } }]);
+    const after = await client.call<Any>('app.config', ['jellyfin']);
+    expect(after.resources.limits).toEqual(before.resources.limits);
+    expect(after.resources.gpus).toEqual({ use_all_gpus: true, kfd_device_exists: false, nvidia_gpu_selection: {} }); // the card is AMD
+    expect(after.storage).toEqual(before.storage);
+  });
+
   it('can only migrate apps from a pool that was configured before', async () => {
     const { client } = await setup();
     await createPool(client, 'SSDs', 'MIRROR', ['nvme0n1', 'nvme1n1']);

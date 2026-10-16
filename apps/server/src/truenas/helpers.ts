@@ -1,5 +1,5 @@
 import type { DriveKind } from '@apexos/api-types';
-import type { TnDataset, TnDate, TnDisk, TnProperty } from './types.ts';
+import type { SchemaQuestion, TnDataset, TnDate, TnDisk, TnProperty } from './types.ts';
 
 export function dateToIso(d: TnDate | null | undefined): string | null {
   return d && typeof d.$date === 'number' ? new Date(d.$date).toISOString() : null;
@@ -61,4 +61,16 @@ export function formatBytes(bytes: number): string {
     i++;
   }
   return `${n >= 100 || i === 0 ? Math.round(n) : n.toFixed(1).replace(/\.0$/, '')} ${units[i]}`;
+}
+
+/** Whether a catalog app's install schema has the setting at `path` (e.g. `resources.gpus`). */
+export function schemaHas(questions: SchemaQuestion[], path: string): boolean {
+  let level = questions;
+  const parts = path.split('.');
+  for (const [i, part] of parts.entries()) {
+    const q = level.find((x) => x.variable === part);
+    if (!q) return false;
+    if (i < parts.length - 1) level = q.schema?.attrs ?? [];
+  }
+  return true;
 }

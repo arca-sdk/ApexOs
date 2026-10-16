@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { AppContext } from '../app.ts';
-import { getCatalogApp, listCatalog, listInstalled, startInstall, startStop, startUninstall, startUpgrade, startUpgradeAll } from '../services/apps.ts';
+import { getCatalogApp, listCatalog, listInstalled, startGpuChange, startInstall, startStop, startUninstall, startUpgrade, startUpgradeAll } from '../services/apps.ts';
 import { oldAppDataHousekeeping, previewAppsPool, startAppsPoolChange } from '../services/apps-pool.ts';
 
 const HOUR = 3600_000;
@@ -38,6 +38,7 @@ export async function appRoutes(app: FastifyInstance, ctx: AppContext): Promise<
         train: z.string().min(1),
         appName: z.string().optional(),
         answers: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
+        useGpu: z.boolean().optional(),
       })
       .parse(req.body);
     return { task: await startInstall(ctx, body) };
@@ -47,6 +48,10 @@ export async function appRoutes(app: FastifyInstance, ctx: AppContext): Promise<
   app.post('/api/apps/:name/start', async (req) => ({ task: await startStop(ctx, nameParam.parse(req.params).name, 'start') }));
   app.post('/api/apps/:name/stop', async (req) => ({ task: await startStop(ctx, nameParam.parse(req.params).name, 'stop') }));
   app.post('/api/apps/:name/upgrade', async (req) => ({ task: await startUpgrade(ctx, nameParam.parse(req.params).name) }));
+  app.post('/api/apps/:name/gpu', async (req) => {
+    const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
+    return { task: await startGpuChange(ctx, nameParam.parse(req.params).name, enabled) };
+  });
   app.delete('/api/apps/:name', async (req) => {
     const { removeData } = z.object({ removeData: z.boolean().default(false) }).parse(req.body ?? {});
     return { task: await startUninstall(ctx, nameParam.parse(req.params).name, removeData) };
