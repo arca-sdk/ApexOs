@@ -173,6 +173,8 @@ describe('locking and unlocking', () => {
     const moving = ctx.tasks.start({ type: 'apps-pool', title: 'Moving apps to SSDs', ref: 'SSDs' }, () => new Promise<void>((r) => (release = r)));
     const lock = await call<Any>('POST', '/api/folders/Vault/lock');
     expect([lock.status, lock.body.error.code, lock.body.error.message]).toEqual([409, 'BUSY', 'Wait until “Moving apps to SSDs” has finished.']);
+    const keyMode = await call<Any>('PUT', '/api/folders/Vault/encryption', { mode: 'key', currentPassphrase: 'correct horse battery' });
+    expect([keyMode.status, keyMode.body.error.code]).toEqual([409, 'BUSY']);
     release();
     await finished({ task: moving });
     expect((await folder('Vault')).encryption!.locked).toBe(false);

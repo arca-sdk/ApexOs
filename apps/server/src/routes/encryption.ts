@@ -46,6 +46,8 @@ export async function encryptionRoutes(app: FastifyInstance, ctx: AppContext): P
       .parse(req.body ?? {});
     const folder = await prepareKeyModeChange(ctx, nameParam.parse(req.params).name, body);
     const title = body.mode === 'passphrase' ? `Setting a passphrase for ${folder.name}` : `Switching ${folder.name} to an automatic key`;
+    // Switching to an automatic key unlocks the folder and starts the apps that were stopped with it.
+    assertAppsNotMoving(ctx);
     return { task: ctx.tasks.start({ type: 'folder-key-mode', title, ref: folder.name }, (t) => changeKeyMode(ctx, folder, body, t)) };
   });
 

@@ -21,10 +21,10 @@ function appsDataset(pool: string): string {
 }
 
 /**
- * Tasks that change apps or the app engine besides app tasks: locking or unlocking a folder stops or starts the
- * apps using it, and a new pool can become the apps pool.
+ * Tasks that change apps or the app engine besides app tasks: locking or unlocking a folder (also as part of
+ * changing its key mode) stops or starts the apps using it, and a new pool can become the apps pool.
  */
-const APP_CHANGING = new Set(['setup', 'pool-create', 'folder-lock', 'folder-unlock']);
+const APP_CHANGING = new Set(['setup', 'pool-create', 'folder-lock', 'folder-unlock', 'folder-key-mode']);
 
 /** A running task that changes apps; a move waits for it (and the other way round). */
 function appTaskRunning(ctx: AppContext): Task | undefined {

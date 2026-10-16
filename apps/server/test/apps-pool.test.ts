@@ -83,7 +83,7 @@ describe('the apps pool', () => {
   });
 
   it('waits for folder locks and new pools, which change apps too', async () => {
-    for (const type of ['folder-lock', 'folder-unlock', 'pool-create']) {
+    for (const type of ['folder-lock', 'folder-unlock', 'folder-key-mode', 'pool-create']) {
       let release!: () => void;
       const busy = ctx.tasks.start({ type, title: `Busy with ${type}`, ref: 'x' }, () => new Promise<void>((r) => (release = r)));
       expect((await preview('HDDs')).problem).toBe(`Wait until “Busy with ${type}” has finished.`);
