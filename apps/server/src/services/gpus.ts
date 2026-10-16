@@ -39,6 +39,25 @@ export function gpuValues(choices: TnGpuChoice[], enabled: boolean, current: TnG
   };
 }
 
+/**
+ * Settings some apps need besides `resources.gpus` to really use the card, as whole top-level keys (TrueNAS
+ * replaces each key that is sent). Immich's machine learning only uses a card with the matching image: CUDA for
+ * NVIDIA, OpenVINO for Intel, ROCm for AMD (only when TrueNAS found the ROCm device, `/dev/kfd`).
+ */
+export function gpuAppValues(catalogApp: string | null | undefined, choices: TnGpuChoice[], enabled: boolean, values: Record<string, unknown>): Record<string, unknown> {
+  if (catalogApp !== 'immich') return {};
+  const immich = values.immich && typeof values.immich === 'object' ? (values.immich as Record<string, unknown>) : {};
+  const resources = values.resources && typeof values.resources === 'object' ? (values.resources as { gpus?: TnGpuValues }) : {};
+  const vendor = (re: RegExp) => choices.some((g) => re.test(g.vendor ?? ''));
+  let image = 'ml_image';
+  if (enabled) {
+    if (vendor(/nvidia/i)) image = 'ml_cuda_image';
+    else if (vendor(/intel/i)) image = 'ml_openvino_image';
+    else if (vendor(/amd|advanced micro/i) && resources.gpus?.kfd_device_exists) image = 'ml_rocm_image';
+  }
+  return { immich: { ...immich, ml_image_selector: image } };
+}
+
 export function gpuEnabled(values: TnGpuValues | undefined): boolean {
   return Boolean(values?.use_all_gpus || Object.values(values?.nvidia_gpu_selection ?? {}).some((s) => s.use_gpu));
 }

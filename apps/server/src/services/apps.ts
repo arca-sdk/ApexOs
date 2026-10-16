@@ -18,7 +18,7 @@ import type { TaskContext } from '../lib/tasks.ts';
 import type { InstalledAppRecord } from '../lib/store.ts';
 import type { TnApp, TnCatalogApp, TnDataset, TnDockerConfig, TnDockerStatus, TnGpuValues, TnSystemInfo } from '../truenas/types.ts';
 import { assertAppsNotMoving } from './apps-pool.ts';
-import { catalogAppUsesGpus, gpuEnabled, gpuValues, readGpus } from './gpus.ts';
+import { catalogAppUsesGpus, gpuAppValues, gpuEnabled, gpuValues, readGpus } from './gpus.ts';
 import { ensureLocation, listLocations, locationDef } from './locations.ts';
 import { lanIp } from './system.ts';
 
@@ -270,6 +270,7 @@ async function runInstall(ctx: AppContext, req: InstallRequest, requestedName: s
     if (choices.length) {
       const resources = values.resources && typeof values.resources === 'object' ? (values.resources as Record<string, unknown>) : {};
       values = { ...values, resources: { ...resources, gpus: gpuValues(choices, true) } };
+      values = { ...values, ...gpuAppValues(app.name, choices, true, values) };
     }
   }
 
@@ -393,8 +394,9 @@ export async function startGpuChange(ctx: AppContext, name: string, enabled: boo
     { type: 'app-gpu', title: `Turning ${enabled ? 'on' : 'off'} the graphics card for ${displayName(app)}`, ref: name },
     async (task) => {
       // TrueNAS replaces each top-level key that is sent, so the whole `resources` object goes along.
+      const values = { resources: { ...resources, gpus: gpuValues(choices, enabled, current) }, ...gpuAppValues(app.metadata?.name, choices, enabled, config) };
       await task.step('Updating the app', (report) =>
-        client.job('app.update', [name, { values: { resources: { ...resources, gpus: gpuValues(choices, enabled, current) } } }], (job) =>
+        client.job('app.update', [name, { values }], (job) =>
           report(job.progress.percent ?? 0, job.progress.description ?? undefined),
         ),
       );

@@ -15,6 +15,7 @@ import { HostCommands } from '../src/lib/host.ts';
 import { StateStore } from '../src/lib/store.ts';
 import { TaskManager } from '../src/lib/tasks.ts';
 import { TrueNasManager } from '../src/lib/truenas.ts';
+import { gpuAppValues } from '../src/services/gpus.ts';
 
 let mock: MockTrueNas;
 let app: FastifyInstance;
@@ -107,5 +108,17 @@ describe('graphics cards for apps', () => {
     const refused = await call<{ error: { code: string } }>('POST', '/api/apps/syncthing/gpu', { enabled: true });
     expect(refused.status).toBe(400);
     expect(refused.body.error.code).toBe('NO_GPU_SUPPORT');
+  });
+
+  it('picks Immich’s machine-learning image for the card, keeping its other settings', () => {
+    const card = (vendor: string, uuid?: string) => ({ vendor, description: vendor, error: null, vendor_specific_config: uuid ? { uuid } : {}, pci_slot: '0000:01:00.0' });
+    const values = { immich: { db_password: 'secret', ml_image_selector: 'ml_image' }, resources: { gpus: { kfd_device_exists: false } } };
+    expect(gpuAppValues('immich', [card('NVIDIA', 'GPU-1')], true, values)).toEqual({ immich: { db_password: 'secret', ml_image_selector: 'ml_cuda_image' } });
+    expect(gpuAppValues('immich', [card('Intel')], true, values).immich).toMatchObject({ ml_image_selector: 'ml_openvino_image' });
+    // ROCm only when TrueNAS found the ROCm device; otherwise recognition stays on the processor.
+    expect(gpuAppValues('immich', [card('AMD')], true, values).immich).toMatchObject({ ml_image_selector: 'ml_image' });
+    expect(gpuAppValues('immich', [card('AMD')], true, { ...values, resources: { gpus: { kfd_device_exists: true } } }).immich).toMatchObject({ ml_image_selector: 'ml_rocm_image' });
+    expect(gpuAppValues('immich', [card('NVIDIA', 'GPU-1')], false, values).immich).toMatchObject({ ml_image_selector: 'ml_image' });
+    expect(gpuAppValues('jellyfin', [card('NVIDIA', 'GPU-1')], true, values)).toEqual({});
   });
 });
