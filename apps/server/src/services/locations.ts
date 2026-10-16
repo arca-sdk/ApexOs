@@ -3,6 +3,7 @@ import { LocationPreferenceId as L } from '@apexos/shared/eshtek/preferences';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import type { TnDataset } from '../truenas/types.ts';
+import { assertFolderNotMoving } from './folder-move.ts';
 import { createFolder, FOLDER_PROPERTY } from './folders.ts';
 import { getStorage } from './storage.ts';
 
@@ -122,8 +123,13 @@ function dedupeUses(uses: FolderUse[]): FolderUse[] {
 export async function setLocation(ctx: AppContext, id: string, path: string): Promise<LocationInfo> {
   const def = locationDef(id);
   const current = (await listLocations(ctx)).find((l) => l.id === def.id)!;
+  if (current.path) assertFolderNotMoving(ctx, current.path.replace(/^\/mnt\//, ''));
   if (current.usedBy.length) {
-    throw new UserError(`This location is used by ${current.usedBy.map((u) => u.name).join(', ')}. Uninstall them first to change it.`, 409, 'IN_USE');
+    throw new UserError(
+      `This location is used by ${current.usedBy.map((u) => u.name).join(', ')}. To take it to another pool with its files, use Move instead.`,
+      409,
+      'IN_USE',
+    );
   }
   const normalized = path.replace(/\/+$/, '');
   const datasetId = datasetIdFromPath(normalized);

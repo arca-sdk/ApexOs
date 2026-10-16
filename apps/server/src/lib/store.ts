@@ -214,6 +214,36 @@ export interface ApexOsState {
   backups: BackupsState;
   /** Pool name → the app data (`<pool>/ix-apps`) TrueNAS left there when ApexOs moved apps away. */
   oldAppData?: Record<string, OldAppDataRecord>;
+  /** Folders being moved to another pool, or moved with their old copy still kept. */
+  folderMoves?: FolderMoveRecord[];
+}
+
+/** Moving a folder (dataset tree) to another pool: copy, switch over, then keep the old copy for a while. */
+export interface FolderMoveRecord {
+  id: string;
+  /** Folder name, e.g. "Media". */
+  name: string;
+  /** `<old pool>/<name>` and `<new pool>/<name>`. */
+  source: string;
+  target: string;
+  /** Hidden copy on the new pool that becomes the folder at the switch-over. */
+  temp: string;
+  /** Hidden name the old folder gets at the switch-over (it is kept as the old copy). */
+  original: string;
+  status: 'running' | 'failed' | 'done';
+  step: string | null;
+  error: string | null;
+  taskId: string | null;
+  renamedOriginal: boolean;
+  /** The copy took the folder's place; from here on the move is finished, not undone. */
+  switched: boolean;
+  /** The folder's own SMB share, paused for the switch-over. */
+  share: { id: number; wasEnabled: boolean } | null;
+  /** Apps ApexOs stopped for the switch-over (started again at the end). */
+  stoppedApps: string[];
+  warnings: string[];
+  startedAt: string;
+  removeAfter: string | null;
 }
 
 export interface OldAppDataRecord {

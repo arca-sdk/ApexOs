@@ -104,6 +104,7 @@ const TASK_NOTICES: Record<string, { done: (ref: string) => string; link: string
   'folder-create': { done: (r) => `Folder ${r} created`, link: '/folders' },
   'folder-update': { done: (r) => `Folder ${r} updated`, link: '/folders' },
   'folder-delete': { done: (r) => `Folder ${r} deleted`, link: '/folders' },
+  'folder-move-old': { done: (r) => `Old copy of ${r} removed`, link: '/settings' },
   'pool-create': { done: (r) => `Pool ${r} created`, link: '/storage' },
   'pool-delete': { done: (r) => `Pool ${r} erased`, link: '/storage' },
   'pool-expand': { done: (r) => `A drive was added to ${r}`, link: '/storage' },
