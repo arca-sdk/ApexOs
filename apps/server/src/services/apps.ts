@@ -180,11 +180,12 @@ export async function startInstall(ctx: AppContext, req: InstallRequest) {
   if (appName !== undefined && (!APP_NAME_RE.test(appName) || appName.length > 40)) {
     throw new UserError('App names use lowercase letters, numbers and dashes (max 40).', 400, 'VALIDATION', { appName: 'Invalid name' });
   }
-  assertAppsNotMoving(ctx);
   const curated = ctx.scripts.has(req.catalogApp);
   const entry = await findCatalogApp(ctx, req.catalogApp, req.train);
   const title = entry.title || entry.name;
   if (ctx.tasks.findRunning('app-install', title)) throw new UserError('This app is already being installed.', 409, 'BUSY');
+  // Checked after the awaits above, right before the task registers, so a move that started meanwhile is seen.
+  assertAppsNotMoving(ctx);
   return ctx.tasks.start(
     {
       type: 'app-install',
@@ -363,8 +364,8 @@ export function displayName(app: TnApp): string {
 }
 
 export async function startStop(ctx: AppContext, name: string, action: 'start' | 'stop') {
-  assertAppsNotMoving(ctx);
   const app = await requireApp(ctx, name);
+  assertAppsNotMoving(ctx);
   return ctx.tasks.start(
     { type: `app-${action}`, title: `${action === 'start' ? 'Starting' : 'Stopping'} ${displayName(app)}`, ref: name },
     async (task) => {
@@ -404,9 +405,9 @@ async function upgradeOne(ctx: AppContext, name: string, task: TaskContext): Pro
 }
 
 export async function startUpgrade(ctx: AppContext, name: string) {
-  assertAppsNotMoving(ctx);
   const app = await requireApp(ctx, name);
   if (!app.upgrade_available) throw new UserError('This app is already up to date.', 409, 'UP_TO_DATE');
+  assertAppsNotMoving(ctx);
   return ctx.tasks.start({ type: 'app-upgrade', title: `Updating ${displayName(app)}`, ref: displayName(app) }, async (task) => {
     await upgradeOne(ctx, name, task);
     ctx.bus.changed('apps');
@@ -414,9 +415,9 @@ export async function startUpgrade(ctx: AppContext, name: string) {
 }
 
 export async function startUpgradeAll(ctx: AppContext) {
-  assertAppsNotMoving(ctx);
   const apps = await ctx.truenas.client().call<TnApp[]>('app.query', [[['upgrade_available', '=', true]]]);
   if (!apps.length) throw new UserError('All apps are up to date.', 409, 'UP_TO_DATE');
+  assertAppsNotMoving(ctx);
   return ctx.tasks.start({ type: 'app-upgrade-all', title: `Updating ${apps.length} app${apps.length === 1 ? '' : 's'}` }, async (task) => {
     const failures: string[] = [];
     for (const app of apps) {
@@ -432,8 +433,8 @@ export async function startUpgradeAll(ctx: AppContext) {
 }
 
 export async function startUninstall(ctx: AppContext, name: string, removeData: boolean) {
-  assertAppsNotMoving(ctx);
   const app = await requireApp(ctx, name);
+  assertAppsNotMoving(ctx);
   return ctx.tasks.start(
     { type: 'app-uninstall', title: `Uninstalling ${displayName(app)}`, ref: displayName(app), steps: removeData ? ['Removing the app', 'Removing app data'] : ['Removing the app'] },
     async (task) => {

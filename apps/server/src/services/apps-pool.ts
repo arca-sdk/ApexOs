@@ -4,7 +4,7 @@ import { UserError } from '../lib/errors.ts';
 import { errorMessage, type Task } from '../lib/tasks.ts';
 import { formatBytes, propNumber } from '../truenas/helpers.ts';
 import type { TnApp, TnDataset, TnDockerConfig } from '../truenas/types.ts';
-import { displayName, getEngine, invalidateCatalog } from './apps.ts';
+import { displayName, invalidateCatalog } from './apps.ts';
 import { addNotice } from './notifications.ts';
 import { getStorage } from './storage.ts';
 
@@ -38,7 +38,8 @@ interface Plan extends AppsPoolPreview {
 
 async function plan(ctx: AppContext, poolName: string): Promise<Plan> {
   const client = ctx.truenas.client();
-  const [storage, engine] = await Promise.all([getStorage(ctx), getEngine(client)]);
+  // Read without a fallback: guessing "no apps pool" after a failed read would switch pools without moving the apps.
+  const [storage, engine] = await Promise.all([getStorage(ctx), client.call<TnDockerConfig>('docker.config')]);
   const target = storage.pools.find((p) => p.name === poolName);
   if (!target) throw new UserError('That pool no longer exists', 404, 'NOT_FOUND');
   const current = engine.pool ? (storage.pools.find((p) => p.name === engine.pool) ?? null) : null;
@@ -192,7 +193,15 @@ export async function withOldAppData(ctx: AppContext, overview: StorageOverview)
 export async function startOldAppDataRemoval(ctx: AppContext, pool: Pool): Promise<Task> {
   if (!ctx.store.get().oldAppData?.[pool.name]) throw new UserError('There’s no old app data on this pool.', 404, 'NOT_FOUND');
   assertAppsNotMoving(ctx);
-  if (ctx.tasks.findRunning('apps-old-data', pool.displayName)) throw new UserError('Old app data is already being removed from this pool.', 409, 'BUSY');
+  if (ctx.tasks.findRunning('apps-old-data')) throw new UserError('Old app data is already being removed. Wait until that has finished.', 409, 'BUSY');
+  return startRemovalTask(ctx, pool);
+}
+
+/**
+ * Removals always run as an `apps-old-data` task, so a move (which waits for `apps-*` tasks) can't start while one
+ * deletes, and none starts while apps move. Callers check and call this with no `await` in between.
+ */
+function startRemovalTask(ctx: AppContext, pool: Pool): Task {
   return ctx.tasks.start({ type: 'apps-old-data', title: `Removing old app data from ${pool.displayName}`, ref: pool.displayName }, (t) =>
     t.step('Removing old app data', () => deleteOldAppData(ctx, pool.name)),
   );
@@ -212,11 +221,25 @@ async function deleteOldAppData(ctx: AppContext, pool: string): Promise<void> {
   ctx.bus.changed('storage');
 }
 
-/** Hourly: removes old app data whose time is up. */
-export async function oldAppDataHousekeeping(ctx: AppContext): Promise<void> {
-  if (!ctx.truenas.connected || ctx.tasks.findRunning('apps-pool')) return;
-  for (const [pool, record] of Object.entries(ctx.store.get().oldAppData ?? {})) {
-    if (Date.parse(record.removeAfter) > Date.now() || ctx.tasks.findRunning('apps-old-data')) continue;
-    await deleteOldAppData(ctx, pool).catch(() => undefined); // tried again next hour
+/** Hourly: starts removing old app data whose time is up, one pool at a time. Returns the task it started. */
+export async function oldAppDataHousekeeping(ctx: AppContext): Promise<Task | null> {
+  if (!ctx.truenas.connected) return null;
+  const due = Object.entries(ctx.store.get().oldAppData ?? {}).filter(([, r]) => Date.parse(r.removeAfter) <= Date.now());
+  if (!due.length) return null;
+  const pools = (await getStorage(ctx)).pools;
+  for (const [name] of due) {
+    const pool = pools.find((p) => p.name === name);
+    if (!pool) {
+      // The pool is gone, and its old app data with it.
+      await ctx.store.update((s) => {
+        if (s.oldAppData) delete s.oldAppData[name];
+      });
+      continue;
+    }
+    // An offline pool waits for the next hour instead of failing (and notifying) every hour.
+    if (pool.health === 'offline') continue;
+    if (ctx.tasks.findRunning('apps-pool') || ctx.tasks.findRunning('apps-old-data')) return null;
+    return startRemovalTask(ctx, pool);
   }
+  return null;
 }

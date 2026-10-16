@@ -253,6 +253,8 @@ export function registerDatasets(mock: Mock): void {
       throw callError('EFAULT', `Failed to delete dataset: cannot destroy '${id}': filesystem has children\nuse '-r' to destroy the following datasets:\n${list}`);
     }
     removeDatasetTree(mock, id);
+    // Apps saved in an inactive pool's ix-apps go with it.
+    if (id === `${ds.pool}/ix-apps`) state.apps = state.apps.filter((a) => a.pool !== ds.pool);
     return true;
   });
 

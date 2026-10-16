@@ -128,7 +128,16 @@ describe('the apps pool', () => {
     await ctx.store.update((s) => {
       s.oldAppData!.HDDs!.removeAfter = new Date(Date.now() - 1000).toISOString();
     });
-    await oldAppDataHousekeeping(ctx);
+    // Nothing is removed while apps move (the cleanup runs as a task that moves wait for, and vice versa).
+    let release!: () => void;
+    const moving = ctx.tasks.start({ type: 'apps-pool', title: 'Moving apps', ref: 'SSDs' }, () => new Promise<void>((r) => (release = r)));
+    expect(await oldAppDataHousekeeping(ctx)).toBeNull();
+    release();
+    await finished({ task: moving });
+
+    const task = await oldAppDataHousekeeping(ctx);
+    expect(task).toMatchObject({ type: 'apps-old-data', title: 'Removing old app data from HDDs' });
+    await finished({ task: task! });
     expect((await pool('HDDs')).oldAppData).toBeUndefined();
     expect((await preview('HDDs')).oldAppData).toBe(false);
     expect(ctx.store.get().oldAppData).toEqual({});

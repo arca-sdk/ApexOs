@@ -186,11 +186,16 @@ describe('apps', () => {
     const back = await failure(client.job('docker.update', [{ pool: 'SSDs', migrate_applications: true }]));
     expect(back.validationErrors[attr]).toBe("Migration of 'HDDs/ix-apps' to 'SSDs/ix-apps' not possible as SSDs/ix-apps already exists.");
 
-    // A plain switch stops the apps and leaves them behind.
+    // A plain switch stops the apps and leaves them behind; the copy kept on SSDs comes back, stopped.
     await client.job('docker.update', [{ pool: 'SSDs' }]);
-    expect(await client.call('app.query')).toEqual([]);
+    expect(await client.call<Any>('app.get_instance', ['jellyfin'])).toMatchObject({ state: 'STOPPED' });
     await client.job('docker.update', [{ pool: 'HDDs' }]);
     expect(await client.call<Any>('app.get_instance', ['jellyfin'])).toMatchObject({ state: 'STOPPED' });
+
+    // Erasing the copy on SSDs takes its apps along.
+    await client.call('pool.dataset.delete', ['SSDs/ix-apps', { recursive: true }]);
+    await client.job('docker.update', [{ pool: 'SSDs' }]);
+    expect(await client.call('app.query')).toEqual([]);
   });
 
   it('can only migrate apps from a pool that was configured before', async () => {

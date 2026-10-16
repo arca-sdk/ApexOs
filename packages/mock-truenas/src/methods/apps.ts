@@ -581,9 +581,11 @@ export function registerApps(mock: Mock): void {
       await job.sleep(2);
       d.pool = newPool;
       job.progress(70, `Restoring docker apps in '${newPool}' pool`);
+      // The new pool gets its own copy of each app; the old copy stays in the old ix-apps, stopped, and comes
+      // back if that pool is chosen again without migrating.
       for (const a of oldVisible) {
-        a.pool = newPool;
-        if (a.state !== 'RUNNING') a.state = 'STOPPED';
+        state.apps.push({ ...structuredClone(a), pool: newPool, state: a.state === 'RUNNING' ? 'RUNNING' : 'STOPPED' });
+        a.state = 'STOPPED';
       }
       await job.sleep();
       d.status = 'RUNNING';
