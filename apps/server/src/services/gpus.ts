@@ -1,5 +1,6 @@
 import type { AppGpus } from '@apexos/api-types';
 import type { TrueNasClient } from '@apexos/truenas-client';
+import { SharedCall } from '../lib/shared-call.ts';
 import { schemaHas } from '../truenas/helpers.ts';
 import type { TnAppDetails, TnDockerConfig, TnGpuChoice, TnGpuValues } from '../truenas/types.ts';
 
@@ -27,6 +28,17 @@ export async function readGpus(client: TrueNasClient): Promise<GpuState> {
       nvidiaNeedsDriver: nvidiaPresent && !docker?.nvidia && !usable.some((g) => g.vendor === 'NVIDIA'),
     },
   };
+}
+
+/**
+ * `readGpus` shared between callers and remembered for a minute. The installed-apps list asks on every refresh
+ * (the Apps page polls while apps start), listing cards probes the hardware, and cards rarely change. Installs and
+ * the on/off toggle read fresh.
+ */
+const gpuCall = new SharedCall<GpuState>({ okMs: 60_000, failedMs: 60_000 });
+
+export function readGpusCached(client: TrueNasClient): Promise<GpuState> {
+  return gpuCall.get(() => readGpus(client));
 }
 
 /** `resources.gpus` that turns every usable card on (or off), keeping the rest of `current`. */

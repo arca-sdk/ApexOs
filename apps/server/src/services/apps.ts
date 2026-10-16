@@ -18,7 +18,7 @@ import type { TaskContext } from '../lib/tasks.ts';
 import type { InstalledAppRecord } from '../lib/store.ts';
 import type { TnApp, TnCatalogApp, TnDataset, TnDockerConfig, TnDockerStatus, TnGpuValues, TnSystemInfo } from '../truenas/types.ts';
 import { assertAppsNotMoving } from './apps-pool.ts';
-import { catalogAppUsesGpus, gpuAppValues, gpuEnabled, gpuValues, readGpus } from './gpus.ts';
+import { catalogAppUsesGpus, gpuAppValues, gpuEnabled, gpuValues, readGpus, readGpusCached } from './gpus.ts';
 import { ensureLocation, listLocations, locationDef } from './locations.ts';
 import { lanIp } from './system.ts';
 
@@ -334,7 +334,7 @@ function webUrl(app: TnApp, ip: string | null): string | null {
 
 export async function listInstalled(ctx: AppContext): Promise<AppsResponse> {
   const client = ctx.truenas.client();
-  const [engine, gpus] = await Promise.all([getEngine(client), readGpus(client)]);
+  const [engine, gpus] = await Promise.all([getEngine(client), readGpusCached(client)]);
   if (!engine.pool) return { apps: [], engine, gpus: gpus.summary };
   const [apps, ip, catalog] = await Promise.all([
     client.call<TnApp[]>('app.query', [[], { extra: { retrieve_config: true } }]),
