@@ -49,6 +49,8 @@ const SNAPSHOT_PREFIX = 'apexos-move-';
 function snapshotName(r: Pick<FolderMoveRecord, 'id'>, n: 1 | 2): string {
   return `${SNAPSHOT_PREFIX}${r.id.slice(0, 8)}-${n}`;
 }
+/** How soon a move that failed after its switch-over is finished again. */
+const RETRY_AFTER_FAILURE_MS = 60_000;
 /** How long the old folder is kept on the old pool. */
 export const OLD_COPY_DAYS = 7;
 const DAY = 24 * 3600_000;
@@ -427,7 +429,7 @@ async function runMove(ctx: AppContext, id: string, t: TaskContext): Promise<voi
     });
 
     await step('Checking the copy', async () => {
-      await compareDatasetTrees(client, r.source, r.temp).catch((err: Error) => {
+      await compareDatasetTrees(client, r.source, r.temp, snapshotName(r, 2)).catch((err: Error) => {
         throw new UserError(err.message, 500, 'COPY_MISMATCH');
       });
       const diff = await compareTrees(client, pathOf(r.source), pathOf(r.temp));
@@ -457,7 +459,16 @@ async function runMove(ctx: AppContext, id: string, t: TaskContext): Promise<voi
     const message = errorMessage(err);
     r = recordById(ctx, id);
     if (r.switched) {
+      // The folder is already on its new pool: finishing is retried soon (not inside this task, which still
+      // counts as the running move until it ends) rather than at the next hourly run.
       await patch(ctx, id, { status: 'failed', error: message });
+      await addNotice(ctx, {
+        level: 'error',
+        title: `Moving ${r.name} needs to finish`,
+        message: `${message} ${r.name} is already on its new pool; ApexOs tries again to finish the move in a minute.`,
+        link: '/settings',
+      }).catch(() => undefined);
+      setTimeout(() => void folderMoveHousekeeping(ctx).catch(() => undefined), RETRY_AFTER_FAILURE_MS).unref();
       throw err;
     }
     const left = await undoBeforeSwitch(ctx, r);
@@ -466,7 +477,9 @@ async function runMove(ctx: AppContext, id: string, t: TaskContext): Promise<voi
     await addNotice(ctx, {
       level: 'error',
       title: `Moving ${r.name} didn’t finish`,
-      message: `${message} Nothing changed: ${r.name} is still on its pool and everything that was stopped runs again.`,
+      message: left
+        ? `${message} ${left}`
+        : `${message} Nothing changed: ${r.name} is still on its pool and everything that was stopped runs again.`,
       link: '/settings',
     }).catch(() => undefined);
     throw err;

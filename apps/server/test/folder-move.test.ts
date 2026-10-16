@@ -15,6 +15,7 @@ import { HostCommands } from '../src/lib/host.ts';
 import { StateStore } from '../src/lib/store.ts';
 import { TaskManager } from '../src/lib/tasks.ts';
 import { TrueNasManager } from '../src/lib/truenas.ts';
+import { compareDatasetTrees } from '../src/services/datasets.ts';
 import { folderMoveHousekeeping } from '../src/services/folder-move.ts';
 
 let mock: MockTrueNas;
@@ -253,5 +254,21 @@ describe('moving a location to another pool', () => {
     expect(await share('Documents')).toMatchObject({ path: '/mnt/SSDs/Documents', enabled: true });
     // Only this move's snapshots go; nothing named for another move is touched.
     expect(await tn('pool.snapshot.query', [[['snapshot_name', '^', 'apexos-move-crashed-']]])).toEqual([]);
+  });
+
+  it('checks a copy only up to its last snapshot, so scheduled snapshots during the move don’t fail it', async () => {
+    await tn('pool.dataset.create', [{ name: 'HDDs/CmpSrc', type: 'FILESYSTEM' }]);
+    const snap = (dataset: string, name: string) => tn('pool.snapshot.create', [{ dataset, name }]);
+    for (const n of ['auto-1', 'auto-2', 'apexos-move-x-1', 'apexos-move-x-2']) await snap('HDDs/CmpSrc', n);
+    await ctx.truenas.client().job('replication.run_onetime', [
+      { direction: 'PUSH', transport: 'LOCAL', source_datasets: ['HDDs/CmpSrc'], target_dataset: 'SSDs/CmpCopy', recursive: true, properties: true, name_regex: '.*', retention_policy: 'NONE', readonly: 'IGNORE', only_from_scratch: true },
+    ]);
+    // During the move the pool's task prunes an old snapshot and takes a new one.
+    await tn('pool.snapshot.delete', ['HDDs/CmpSrc@auto-1']);
+    await snap('HDDs/CmpSrc', 'auto-3');
+    await expect(compareDatasetTrees(ctx.truenas.client(), 'HDDs/CmpSrc', 'SSDs/CmpCopy', 'apexos-move-x-2')).resolves.toBeUndefined();
+    // A snapshot from before the final one that never reached the copy still fails the check.
+    await tn('pool.snapshot.delete', ['SSDs/CmpCopy@auto-2']);
+    await expect(compareDatasetTrees(ctx.truenas.client(), 'HDDs/CmpSrc', 'SSDs/CmpCopy', 'apexos-move-x-2')).rejects.toThrow(/restore points/);
   });
 });

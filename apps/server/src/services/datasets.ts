@@ -157,14 +157,20 @@ export async function compareTrees(client: TrueNasClient, from: string, to: stri
   return walk('');
 }
 
-/** Checks both trees have the same datasets and the same snapshots on each. Throws a readable error. */
-export async function compareDatasetTrees(client: TrueNasClient, source: string, copy: string): Promise<void> {
+/**
+ * Checks both trees have the same datasets, and that the copy has every snapshot the source had up to `upTo`
+ * (the last snapshot copied). Scheduled snapshot tasks keep running on the source meanwhile, so snapshots taken
+ * after `upTo`, and ones the source has pruned since they were copied, don't count. Throws a readable error.
+ */
+export async function compareDatasetTrees(client: TrueNasClient, source: string, copy: string, upTo: string): Promise<void> {
   const [src, dst] = await Promise.all([queryDatasets(client, [treeFilter(source)]), queryDatasets(client, [treeFilter(copy)])]);
   const rel = (ids: TnDataset[], root: string) => ids.map((d) => d.id.slice(root.length)).sort().join('|');
   if (rel(src, source) !== rel(dst, copy)) throw new Error('The copy is missing part of the folder.');
   for (const d of src) {
     const twin = `${copy}${d.id.slice(source.length)}`;
     const [a, b] = await Promise.all([snapshotNames(client, d.id), snapshotNames(client, twin)]);
-    if (a.join('|') !== b.join('|')) throw new Error(`The restore points of ${d.id} don’t match the copy.`);
+    const end = a.indexOf(upTo);
+    const copied = new Set(b);
+    if (end < 0 || a.slice(0, end + 1).some((s) => !copied.has(s))) throw new Error(`The restore points of ${d.id} don’t match the copy.`);
   }
 }
