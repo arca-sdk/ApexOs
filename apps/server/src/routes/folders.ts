@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { afterFolderDeleted, assertFolderEditable, assertNotConverting } from '../services/encryption.ts';
+import { assertFolderNotMoving } from '../services/folder-move.ts';
 import { createFolder, deleteFolder, getFolder, listFolders, prepareFolder, updateFolder } from '../services/folders.ts';
 
 const access = z.object({
@@ -32,7 +33,9 @@ export async function folderRoutes(app: FastifyInstance, ctx: AppContext): Promi
   app.put('/api/folders/:name', async (req) => {
     const { name } = nameParam.parse(req.params);
     const body = access.parse(req.body);
-    assertFolderEditable(ctx, await getFolder(ctx, name));
+    const folder = await getFolder(ctx, name);
+    assertFolderEditable(ctx, folder);
+    assertFolderNotMoving(ctx, folder.dataset);
     if (body.access === 'public' && body.timeMachine) {
       throw new UserError('Time Machine folders must be private.', 400, 'VALIDATION', { timeMachine: 'Make the folder private first' });
     }
@@ -49,6 +52,7 @@ export async function folderRoutes(app: FastifyInstance, ctx: AppContext): Promi
     if (confirmName.trim() !== folder.name) throw new UserError('Type the folder name exactly to confirm.', 400, 'VALIDATION', { confirmName: 'Does not match' });
     if (folder.usedBy.length) throw new UserError(`This folder is in use by ${folder.usedBy.map((u) => u.name).join(', ')}.`, 409, 'IN_USE');
     assertNotConverting(ctx, folder);
+    assertFolderNotMoving(ctx, folder.dataset);
     const task = ctx.tasks.start({ type: 'folder-delete', title: `Deleting folder ${name}`, ref: name }, async () => {
       await deleteFolder(ctx, name, confirmName);
       await afterFolderDeleted(ctx, folder.dataset);

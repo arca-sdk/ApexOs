@@ -16,7 +16,6 @@ import { randomBytes } from 'node:crypto';
 import type {
   ChangeKeyModeRequest,
   ConversionCheck,
-  ConversionDuration,
   EncryptionConversion,
   EncryptionMode,
   Folder,
@@ -32,7 +31,25 @@ import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { errorMessage, type TaskContext } from '../lib/tasks.ts';
 import { formatBytes, GiB, propNumber, userProp } from '../truenas/helpers.ts';
-import type { TnApp, TnDataset, TnProperty, TnSmbShare } from '../truenas/types.ts';
+import type { TnApp, TnDataset, TnSmbShare } from '../truenas/types.ts';
+import {
+  attachedApps,
+  attachments,
+  compareTrees,
+  dateStamp,
+  durationOf,
+  ensureSnapshot,
+  getDataset,
+  inside,
+  isAppAttachment,
+  joinList as list,
+  queryDatasets,
+  snapshotNames,
+  type TnAttachment,
+  type TnCryptoDataset,
+  type TnReplicationTask,
+} from './datasets.ts';
+import { assertFolderNotMoving } from './folder-move.ts';
 import { FOLDER_PROPERTY, getFolder, listFolders } from './folders.ts';
 import { addNotice } from './notifications.ts';
 
@@ -51,10 +68,6 @@ export const MIN_PASSPHRASE = 8;
 const MAX_PASSPHRASE = 512;
 const PBKDF2_ITERS = 350000;
 const HOUR = 3600_000;
-/** Assumed copy speed for the duration estimate. */
-const COPY_BYTES_PER_SEC = 150e6;
-/** Most entries the post-copy check compares file by file (the snapshot comparison always runs). */
-const VERIFY_MAX_ENTRIES = 20_000;
 
 /** What ApexOs keeps about one "turn on encryption" run. Survives restarts so Retry can resume it. */
 export interface ConversionRecord {
@@ -123,35 +136,6 @@ async function markRecoveryPending(ctx: AppContext, dataset: string, pending: bo
 // ---------------------------------------------------------------------------
 // Reading encryption state
 // ---------------------------------------------------------------------------
-
-/** `pool.dataset.query` entry with the crypto fields (requested through `CRYPTO_QUERY_PROPERTIES`). */
-export interface TnCryptoDataset extends TnDataset {
-  encryption_root?: string | null;
-  key_loaded?: boolean;
-  key_format?: TnProperty<string | null>;
-  refquota?: TnProperty<number | null>;
-  usedbysnapshots?: TnProperty<number>;
-}
-
-/** Properties that make TrueNAS fill `encrypted`, `encryption_root`, `locked` and `key_format`. */
-export const CRYPTO_QUERY_PROPERTIES = ['encryption', 'encryptionroot', 'keyformat', 'keystatus'];
-
-async function queryDatasets(client: TrueNasClient, filters: unknown[]): Promise<TnCryptoDataset[]> {
-  return client.call<TnCryptoDataset[]>('pool.dataset.query', [
-    filters,
-    {
-      extra: {
-        retrieve_children: false,
-        properties: ['used', 'available', 'quota', 'refquota', 'usedbysnapshots', 'mountpoint', ...CRYPTO_QUERY_PROPERTIES],
-        retrieve_user_props: true,
-      },
-    },
-  ]);
-}
-
-async function getDataset(client: TrueNasClient, id: string): Promise<TnCryptoDataset | null> {
-  return (await queryDatasets(client, [['id', '=', id]]))[0] ?? null;
-}
 
 export function encryptionMode(ds: Pick<TnCryptoDataset, 'encrypted' | 'key_format'>): EncryptionMode {
   if (!ds.encrypted) return 'none';
@@ -228,24 +212,6 @@ export async function decorateFolders(ctx: AppContext, folders: Folder[], datase
     }),
   );
   return folders;
-}
-
-interface TnAttachment {
-  type: string;
-  service: string | null;
-  attachments: string[];
-}
-
-async function attachments(client: TrueNasClient, dataset: string): Promise<TnAttachment[]> {
-  return client.call<TnAttachment[]>('pool.dataset.attachments', [dataset]);
-}
-
-function isAppAttachment(a: TnAttachment): boolean {
-  return a.service === 'docker' || /application|^apps?$/i.test(a.type);
-}
-
-async function attachedApps(client: TrueNasClient, dataset: string): Promise<string[]> {
-  return (await attachments(client, dataset)).filter(isAppAttachment).flatMap((a) => a.attachments);
 }
 
 // ---------------------------------------------------------------------------
@@ -520,35 +486,6 @@ export async function changeKeyMode(ctx: AppContext, folder: Folder, req: Change
 // Turning on encryption for an existing folder (Copy strategy)
 // ---------------------------------------------------------------------------
 
-interface TnReplicationTask {
-  id: number;
-  name: string;
-  source_datasets: string[];
-  target_dataset: string;
-  direction: string;
-}
-
-function inside(id: string, root: string): boolean {
-  return id === root || id.startsWith(`${root}/`);
-}
-
-function durationOf(bytes: number): ConversionDuration {
-  const seconds = bytes / COPY_BYTES_PER_SEC;
-  if (seconds < 15 * 60) return 'minutes';
-  if (seconds < 3600) return 'up-to-an-hour';
-  if (seconds < 6 * 3600) return 'a-few-hours';
-  return 'a-day-or-more';
-}
-
-function dateStamp(d = new Date()): string {
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function list(names: string[]): string {
-  if (names.length <= 1) return names.join('');
-  return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
-}
-
 interface ConversionPlan extends ConversionCheck {
   folder: Folder;
   temp: string;
@@ -670,6 +607,8 @@ export async function startConversion(ctx: AppContext, name: string, req: StartC
   const plan = await checkConversion(ctx, name);
   if (!plan.allowed) throw new UserError(plan.blockers.map((b) => b.message).join(' '), 409, 'CANNOT_CONVERT');
   const { folder } = plan;
+  // After the awaited check, before the record is saved (nothing awaited in between): a move may have started.
+  assertFolderNotMoving(ctx, folder.dataset);
   const record: ConversionRecord = {
     folder: folder.name,
     dataset: folder.dataset,
@@ -735,16 +674,6 @@ async function patchRecord(ctx: AppContext, dataset: string, patch: Partial<Conv
   return stored(ctx).conversions![dataset]!;
 }
 
-async function snapshotNames(client: TrueNasClient, dataset: string): Promise<string[]> {
-  const snaps = await client.call<{ snapshot_name: string; createtxg: string }[]>('pool.snapshot.query', [[['dataset', '=', dataset]], { select: ['snapshot_name', 'createtxg'] }]);
-  return snaps.sort((a, b) => Number(a.createtxg) - Number(b.createtxg)).map((s) => s.snapshot_name);
-}
-
-async function ensureSnapshot(client: TrueNasClient, dataset: string, name: string): Promise<void> {
-  const exists = await client.call<unknown[]>('pool.snapshot.query', [[['id', '=', `${dataset}@${name}`]]]);
-  if (!exists.length) await client.call('pool.snapshot.create', [{ dataset, name, recursive: true }]);
-}
-
 function replicationArgs(record: ConversionRecord, fromScratch: boolean): Record<string, unknown> {
   return {
     direction: 'PUSH',
@@ -771,43 +700,6 @@ function replicationArgs(record: ConversionRecord, fromScratch: boolean): Record
     encryption_key: record.key,
     encryption_key_location: '$TrueNAS',
   };
-}
-
-interface FsEntry {
-  name: string;
-  path: string;
-  type: string;
-  size: number;
-  uid: number;
-  gid: number;
-  mode: number;
-  is_mountpoint?: boolean;
-}
-
-/** Compares names, types, sizes, owners and modes of both trees (up to VERIFY_MAX_ENTRIES entries). */
-async function compareTrees(client: TrueNasClient, from: string, to: string): Promise<string | null> {
-  let seen = 0;
-  const walk = async (rel: string): Promise<string | null> => {
-    const [a, b] = await Promise.all([
-      client.call<FsEntry[]>('filesystem.listdir', [`${from}${rel}`, [], { order_by: ['name'] }]),
-      client.call<FsEntry[]>('filesystem.listdir', [`${to}${rel}`, [], { order_by: ['name'] }]),
-    ]);
-    if (a.length !== b.length) return `${rel || '/'} has ${a.length} items in the original and ${b.length} in the copy`;
-    for (let i = 0; i < a.length; i++) {
-      const x = a[i]!;
-      const y = b[i]!;
-      if (x.name !== y.name || x.type !== y.type || x.uid !== y.uid || x.gid !== y.gid || x.mode !== y.mode || (x.type === 'FILE' && x.size !== y.size)) {
-        return `${rel}/${x.name}`;
-      }
-      if (++seen >= VERIFY_MAX_ENTRIES) return null;
-      if (x.type === 'DIRECTORY') {
-        const diff = await walk(`${rel}/${x.name}`);
-        if (diff) return diff;
-      }
-    }
-    return null;
-  };
-  return walk('');
 }
 
 async function runConversion(ctx: AppContext, dataset: string, passphrase: string | undefined, t: TaskContext): Promise<void> {

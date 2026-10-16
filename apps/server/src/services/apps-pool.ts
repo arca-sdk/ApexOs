@@ -22,9 +22,10 @@ function appsDataset(pool: string): string {
 
 /**
  * Tasks that change apps or the app engine besides app tasks: locking or unlocking a folder (also as part of
- * changing its key mode) stops or starts the apps using it, and a new pool can become the apps pool.
+ * changing its key mode) stops or starts the apps using it, a folder move stops them and rewrites their settings,
+ * and a new pool can become the apps pool.
  */
-const APP_CHANGING = new Set(['setup', 'pool-create', 'folder-lock', 'folder-unlock', 'folder-key-mode']);
+const APP_CHANGING = new Set(['setup', 'pool-create', 'folder-lock', 'folder-unlock', 'folder-key-mode', 'folder-move']);
 
 /** A running task that changes apps; a move waits for it (and the other way round). */
 function appTaskRunning(ctx: AppContext): Task | undefined {
@@ -33,9 +34,12 @@ function appTaskRunning(ctx: AppContext): Task | undefined {
     .find((t) => t.status === 'running' && (APP_CHANGING.has(t.type) || t.type.startsWith('app-') || t.type.startsWith('apps-') || t.type.startsWith('remote-')));
 }
 
-/** Refuses app changes while apps move to another pool (the app engine is stopped for most of it). */
+/**
+ * Refuses app changes while apps move to another pool (the app engine is stopped for most of it) or a folder
+ * moves (an app started meanwhile could write into the copy that is about to be left behind).
+ */
 export function assertAppsNotMoving(ctx: AppContext): void {
-  const move = ctx.tasks.findRunning('apps-pool');
+  const move = ctx.tasks.findRunning('apps-pool') ?? ctx.tasks.findRunning('folder-move');
   if (move) throw new UserError(`Wait until “${move.title}” has finished.`, 409, 'BUSY');
 }
 

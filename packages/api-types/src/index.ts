@@ -457,6 +457,49 @@ export interface LocationInfo {
 /** GET /api/locations → LocationInfo[] */
 /** PUT /api/locations/:id  { path } → LocationInfo  (path must be a folder inside a pool) */
 
+/**
+ * GET /api/locations/:id/move → what moving the location's folder (with all its files) to another pool involves.
+ * The whole top-level folder moves, so locations inside it (Movies inside Media) and the apps using it follow.
+ */
+export interface LocationMoveCheck {
+  /** The folder that moves, e.g. "Media". */
+  folder: string;
+  pool: string;
+  poolDisplayName: string;
+  /** Locations inside the folder; they all move along. */
+  locations: string[];
+  /** Apps that use files in the folder; they stop while the last changes are copied, then start again. */
+  apps: string[];
+  usedBytes: number;
+  spaceNeededBytes: number;
+  duration: ConversionDuration;
+  /** Why the folder can't move right now, whatever the destination. */
+  blockers: { code: string; message: string }[];
+  /** Things to know that don't stop the move (they are repeated when it finishes). */
+  notes: string[];
+  /** Pools it could move to; `problem` explains why one can't be used. */
+  targets: { name: string; displayName: string; kind: PoolKind; freeBytes: number; problem: string | null }[];
+}
+
+/** POST /api/locations/:id/move  { pool } → TaskStarted */
+
+/** GET /api/locations/moves → FolderMove[]: moves that are running, need attention, or left an old copy behind. */
+export interface FolderMove {
+  id: string;
+  folder: string;
+  fromPool: string;
+  toPool: string;
+  state: 'running' | 'failed' | 'done';
+  error: string | null;
+  taskId: string | null;
+  /** Things that need a look after the move (an app that couldn't be updated or started…). */
+  warnings: string[];
+  /** The copy left on the old pool, and when ApexOs removes it. */
+  oldCopy: { usedBytes: number; removeAfter: string } | null;
+}
+
+/** DELETE /api/locations/moves/:id/old-copy → TaskStarted (removes the old copy now) */
+
 // ---------------------------------------------------------------------------
 // Apps
 // ---------------------------------------------------------------------------
