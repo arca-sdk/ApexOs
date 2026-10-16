@@ -22,7 +22,9 @@ function appsDataset(pool: string): string {
 
 /** A running task that changes apps; a move waits for it (and the other way round). */
 function appTaskRunning(ctx: AppContext): Task | undefined {
-  return ctx.tasks.list().find((t) => t.status === 'running' && (t.type.startsWith('app-') || t.type.startsWith('apps-') || t.type.startsWith('remote-')));
+  return ctx.tasks
+    .list()
+    .find((t) => t.status === 'running' && (t.type === 'setup' || t.type.startsWith('app-') || t.type.startsWith('apps-') || t.type.startsWith('remote-')));
 }
 
 /** Refuses app changes while apps move to another pool (the app engine is stopped for most of it). */

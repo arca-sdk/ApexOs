@@ -17,6 +17,7 @@ import {
 } from './storage.ts';
 import { getTimezone, scanHardware, setServerName } from './system.ts';
 import { listUsers } from './users.ts';
+import { assertAppsNotMoving } from './apps-pool.ts';
 
 let importableCache: { at: number; pools: ImportablePool[] } | null = null;
 
@@ -186,6 +187,8 @@ export async function startSetup(ctx: AppContext, req: SetupRequest) {
   if (!initial.ok) throw new UserError(initial.problems.join(' '), 400, 'SETUP_INVALID');
   if (initial.needsEraseConsent && !req.consentErase) throw new UserError('Confirm that the selected drives may be erased.', 400, 'CONSENT_REQUIRED');
   if (initial.needsKeepConsent && !req.consentKeep) throw new UserError('Confirm what you are keeping.', 400, 'CONSENT_REQUIRED');
+  // Setup may set the apps pool itself (without moving apps), so it never overlaps a move of the apps.
+  assertAppsNotMoving(ctx);
 
   return ctx.tasks.start(
     {
