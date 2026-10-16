@@ -31,7 +31,7 @@ ApexOs is not affiliated with, endorsed by, or connected to Eshtek, Inc. (HexOS)
 | **Dashboard** | System, memory, network and per-app live metrics, storage rings, app cards, update banner. |
 | **Notifications & activity** | TrueNAS alerts with plain-language titles (dismissals sync back), ApexOs task results, running tasks with step-by-step progress. |
 | **Network** | Per-port DHCP or static address, gateway, DNS servers and VLANs. Changes are applied with TrueNAS's automatic rollback: if ApexOs can't reach the server afterwards, the previous settings come back by themselves. |
-| **Settings** | Server name, account password, time zone, locations, TrueNAS updates, restart/shut down, temperature unit. |
+| **Settings** | Server name, account password, time zone, locations, TrueNAS updates, restart/shut down, temperature unit, and *Start over*: erase every pool, app, share user and backup and run setup again (needs the server's name, your password and, with two-factor sign-in, a code; your account and the TrueNAS connection stay). |
 | **Sign-in security** | Optional two-factor sign-in (authenticator app codes, 10 single-use recovery codes), failed-attempt limiting with backoff, *Sign out everywhere*. See [Two-factor sign-in](#two-factor-sign-in). |
 | **Remote access** | Reach the server from anywhere through accounts you own: Tailscale (recommended, includes file shares) or Cloudflare Tunnel (web page only), installed as TrueNAS apps; guidance for your own VPN or reverse proxy; a security checklist. No ApexOs cloud or relay. See [Remote access](#remote-access). |
 

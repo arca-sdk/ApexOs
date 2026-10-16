@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { getDashboard } from '../services/dashboard.ts';
+import { checkResetConfirm, previewReset, startReset } from '../services/reset.ts';
+import { confirmOwner, guarded } from '../services/two-factor.ts';
 import { assertRiskAcknowledged, getTimezone, getUpdateInfo, invalidateUpdateCheck, power, scanHardware, setTimezone } from '../services/system.ts';
 
 export async function systemRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
@@ -13,6 +15,16 @@ export async function systemRoutes(app: FastifyInstance, ctx: AppContext): Promi
     const { timezone } = z.object({ timezone: z.string().min(1) }).parse(req.body);
     await setTimezone(ctx, timezone);
     return { ok: true };
+  });
+
+  app.get('/api/system/reset', async () => previewReset(ctx));
+  app.post('/api/system/reset', async (req, reply) => {
+    const body = z.object({ password: z.string().min(1).max(256), code: z.string().max(64).optional(), confirm: z.string() }).parse(req.body);
+    checkResetConfirm(ctx, body.confirm);
+    return guarded(ctx, req, reply, async () => {
+      await confirmOwner(ctx, req, body);
+      return { task: await startReset(ctx, body.confirm) };
+    });
   });
 
   app.get('/api/system/update', async () => getUpdateInfo(ctx));

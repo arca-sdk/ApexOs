@@ -5,7 +5,7 @@
  */
 import { computed, nextTick, onMounted, ref, watch, type Component } from 'vue';
 import { useRoute } from 'vue-router';
-import { Download, Info, KeyRound, MapPin, Network, Plug, Power, Server, SlidersHorizontal, User } from 'lucide-vue-next';
+import { Download, Eraser, Info, KeyRound, MapPin, Network, Plug, Power, Server, SlidersHorizontal, User } from 'lucide-vue-next';
 import AboutSection from '../components/settings/AboutSection.vue';
 import AccountSection from '../components/settings/AccountSection.vue';
 import GeneralSection from '../components/settings/GeneralSection.vue';
@@ -14,6 +14,7 @@ import NetworkSection from '../components/settings/NetworkSection.vue';
 import PowerSection from '../components/settings/PowerSection.vue';
 import PreferencesSection from '../components/settings/PreferencesSection.vue';
 import RecoveryKeySection from '../components/settings/RecoveryKeySection.vue';
+import ResetSection from '../components/settings/ResetSection.vue';
 import TrueNasSection from '../components/settings/TrueNasSection.vue';
 import UpdatesSection from '../components/settings/UpdatesSection.vue';
 
@@ -35,6 +36,7 @@ const groups: { title: string; sections: Section[] }[] = [
       { id: 'power', label: 'Power', hint: 'Restart or shut down', icon: Power, component: PowerSection },
       { id: 'recovery', label: 'Recovery key', hint: 'Keys for encrypted folders', icon: KeyRound, component: RecoveryKeySection },
       { id: 'truenas', label: 'TrueNAS', hint: 'Connection and the TrueNAS UI', icon: Plug, component: TrueNasSection },
+      { id: 'reset', label: 'Start over', hint: 'Erase everything and set up again', icon: Eraser, component: ResetSection },
     ],
   },
   {

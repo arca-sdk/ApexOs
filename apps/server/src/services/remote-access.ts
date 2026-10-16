@@ -164,7 +164,8 @@ async function ensureIpForwarding(client: TrueNasClient): Promise<IpForwardingRe
   return { tunableId: existing.id, created: false, previous: { value: existing.value, enabled: existing.enabled } };
 }
 
-async function undoIpForwarding(client: TrueNasClient, rec: IpForwardingRecord): Promise<void> {
+/** Removes (or restores) the IPv4 forwarding tunable ApexOs set for Tailscale's "Share my home network". */
+export async function undoIpForwarding(client: TrueNasClient, rec: IpForwardingRecord): Promise<void> {
   const [current] = await client.call<TnTunable[]>('tunable.query', [[['id', '=', rec.tunableId]]]);
   if (!current) return;
   if (rec.created) await client.job('tunable.delete', [rec.tunableId]);
