@@ -130,19 +130,23 @@ export async function startReset(ctx: AppContext, confirm: string): Promise<Task
     if (forwarding) await t.step('Turning off traffic forwarding', () => attempt('Traffic forwarding', () => undoIpForwarding(client, forwarding)));
     else t.skip('Turning off traffic forwarding', 'Not turned on');
 
-    await t.step('Removing users', async () => {
-      const dir = await readUsers(client);
-      for (const u of usersToRemove(dir.users, dir)) await attempt(`User ${u.username}`, () => client.call('user.delete', [u.id, { delete_group: true }]));
-    });
+    await t.step('Removing users', () =>
+      attempt('Users', async () => {
+        const dir = await readUsers(client);
+        for (const u of usersToRemove(dir.users, dir)) await attempt(`User ${u.username}`, () => client.call('user.delete', [u.id, { delete_group: true }]));
+      }),
+    );
 
-    await t.step('Erasing pools', async (report) => {
-      const pools = (await getStorage(ctx)).pools;
-      for (const [i, pool] of pools.entries()) {
-        await attempt(`Pool ${pool.displayName}`, () => client.job('pool.export', [pool.id, { cascade: true, restart_services: true, destroy: true }]));
-        report(((i + 1) / pools.length) * 100);
-      }
-      invalidateImportable();
-    });
+    await t.step('Erasing pools', (report) =>
+      attempt('Pools', async () => {
+        const pools = (await getStorage(ctx)).pools;
+        for (const [i, pool] of pools.entries()) {
+          await attempt(`Pool ${pool.displayName}`, () => client.job('pool.export', [pool.id, { cascade: true, restart_services: true, destroy: true }]));
+          report(((i + 1) / pools.length) * 100);
+        }
+        invalidateImportable();
+      }),
+    );
 
     await t.step('Resetting ApexOs', async () => {
       // Pools that couldn't be erased keep their name and encryption records (a key saved for an unfinished

@@ -30,7 +30,13 @@ const finishedResets = computed(() =>
 );
 watch(finishedResets, async (ids) => {
   if (!ids) return;
-  await refreshStatus();
+  try {
+    await refreshStatus();
+  } catch {
+    // The status couldn't be read; setup is where an erased server belongs anyway.
+    await router.replace('/setup');
+    return;
+  }
   if (!session.setupComplete) await router.replace('/setup');
 });
 </script>
