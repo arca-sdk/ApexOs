@@ -268,7 +268,6 @@ export async function checkLocationMove(ctx: AppContext, id: string): Promise<Lo
 // ---------------------------------------------------------------------------
 
 export async function startLocationMove(ctx: AppContext, id: string, pool: string): Promise<Task> {
-  assertAppsNotMoving(ctx);
   const plan = await checkFolder(ctx, locationFolder(ctx, id));
   if (plan.blockers.length) throw new UserError(plan.blockers.map((b) => b.message).join(' '), 409, 'CANNOT_MOVE');
   const target = plan.targets.find((t) => t.name === pool);
@@ -276,7 +275,13 @@ export async function startLocationMove(ctx: AppContext, id: string, pool: strin
   if (target.problem) throw new UserError(target.problem, 409, 'CANNOT_MOVE');
   const client = ctx.truenas.client();
   if (await nameTaken(client, `${pool}/${plan.folder}`)) throw new UserError(`${target.displayName} already has a folder called ${plan.folder}.`, 409, 'NAME_TAKEN');
+
+  // Checked again after the awaits above; from here to registering the task nothing is awaited, so neither
+  // another move nor an app change can start in between.
   if (unfinished(ctx)) throw new UserError('Another folder is being moved. Wait until that has finished.', 409, 'BUSY');
+  assertAppsNotMoving(ctx);
+  const appTask = ctx.tasks.list().find((t) => t.status === 'running' && (t.type.startsWith('app-') || t.type.startsWith('apps-') || t.type.startsWith('remote-')));
+  if (appTask) throw new UserError(`Wait until “${appTask.title}” has finished.`, 409, 'BUSY');
 
   const record: FolderMoveRecord = {
     id: randomUUID(),
@@ -297,12 +302,14 @@ export async function startLocationMove(ctx: AppContext, id: string, pool: strin
     startedAt: new Date().toISOString(),
     removeAfter: null,
   };
-  await ctx.store.update((s) => {
+  // The record is in memory as soon as update() is called; only writing it to disk is awaited.
+  const saved = ctx.store.update((s) => {
     s.folderMoves = [...(s.folderMoves ?? []), record];
   });
   const task = ctx.tasks.start({ type: 'folder-move', title: `Moving ${plan.folder} to ${target.displayName}`, ref: plan.folder, steps: MOVE_STEPS }, (t) =>
     runMove(ctx, record.id, t),
   );
+  await saved;
   await patch(ctx, record.id, { taskId: task.id });
   ctx.bus.changed('locations');
   return task;

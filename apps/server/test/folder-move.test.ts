@@ -107,6 +107,9 @@ describe('moving a location to another pool', () => {
     expect(started.task.title).toBe('Moving Photos to SSDs');
     // One move at a time, and the folder can't be changed meanwhile.
     expect((await call('POST', '/api/locations/Documents/move', { pool: 'SSDs' })).status).toBe(409);
+    // App changes wait too: an app started now could write into the copy that is about to be left behind.
+    const stop = await call<{ error: { code: string } }>('POST', '/api/apps/jellyfin/stop');
+    expect([stop.status, stop.body.error.code]).toEqual([409, 'BUSY']);
     const task = await finished(started);
     expect(task.steps.every((s) => s.status === 'success')).toBe(true);
 
