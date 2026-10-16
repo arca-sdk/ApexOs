@@ -140,6 +140,30 @@ export interface PowerRequest {
   acknowledgeRisk?: boolean;
 }
 
+/** GET /api/system/reset → everything "Erase everything and start over" removes. */
+export interface ResetPreview {
+  /** What to type to confirm (the server's name). */
+  confirmText: string;
+  /** Two-factor sign-in is on, so a code is needed too. */
+  needsCode: boolean;
+  pools: { name: string; displayName: string; usedBytes: number }[];
+  apps: string[];
+  users: string[];
+  /** Servers this one backs up to (their copies there are removed too, when reachable). */
+  backups: string[];
+  /** Other servers back up to this one; their copies here are erased with the pools. */
+  hostsBackups: boolean;
+  /** Why it can't start right now. */
+  blockers: { code: string; message: string }[];
+}
+
+/** POST /api/system/reset → TaskStarted. ApexOs keeps your account and its TrueNAS connection, then runs setup again. */
+export interface ResetRequest {
+  password: string;
+  code?: string;
+  confirm: string;
+}
+
 /** GET /api/system/timezone → { timezone, choices }; PUT { timezone } */
 export interface TimezoneInfo {
   timezone: string;

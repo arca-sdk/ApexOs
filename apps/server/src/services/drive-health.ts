@@ -363,6 +363,15 @@ function withLock<T>(ctx: AppContext, fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
+/** Forgets data-loss records (they are kept per pool name, which a new pool may reuse); drive history stays. */
+export function forgetPoolDataLoss(ctx: AppContext): Promise<void> {
+  return withLock(ctx, () =>
+    ctx.store.update((s) => {
+      s.driveHealth.dataLoss = {};
+    }),
+  );
+}
+
 const monitors = new WeakMap<AppContext, DriveHealthMonitor>();
 
 export class DriveHealthMonitor {

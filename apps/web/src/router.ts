@@ -23,7 +23,7 @@ export const router = createRouter({
 });
 
 /** Sends the user to the first unfinished onboarding step. */
-function onboardingRedirect(to: RouteLocationNormalized): string | undefined {
+export function onboardingRedirect(to: RouteLocationNormalized): string | undefined {
   if (session.needsAccount) return to.name === 'welcome' ? undefined : '/welcome';
   if (!session.authenticated) return to.meta.public ? undefined : `/login`;
   if (!session.truenasConfigured || !session.truenasConnected) return to.name === 'connect' ? undefined : '/connect';

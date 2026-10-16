@@ -329,6 +329,21 @@ export function disableTwoFactor(ctx: AppContext, req: FastifyRequest, reply: Fa
   });
 }
 
+/**
+ * Confirms it's really the owner before something that can't be undone: the password, plus a code when
+ * two-factor sign-in is on. Call inside `guarded`.
+ */
+export async function confirmOwner(ctx: AppContext, req: FastifyRequest, body: { password: string; code?: string }): Promise<void> {
+  const { admin, security } = ctx.store.get();
+  if (!admin || !(await verifyPassword(body.password, admin.passwordHash))) {
+    throw new UserError(`Your password is incorrect.${recordFailure(ctx, req)}`, 400, 'INVALID_CREDENTIALS', { password: 'Incorrect password' });
+  }
+  if (!security.twoFactor) return;
+  if (!body.code?.trim()) throw new UserError('Enter a code from your authenticator app.', 400, 'CODE_REQUIRED', { code: 'Enter the code' });
+  const result = await checkSecondFactor(ctx, body.code, true);
+  if (!result.ok) throw new UserError(codeError(result, recordFailure(ctx, req)), 400, 'INVALID_CODE', { code: 'Incorrect code' });
+}
+
 /** Replaces all recovery codes; needs a current authenticator code. */
 export function regenerateRecoveryCodes(ctx: AppContext, req: FastifyRequest, reply: FastifyReply, code: string): Promise<RecoveryCodesResponse> {
   return guarded(ctx, req, reply, async () => {

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
+import { UserError } from './errors.ts';
 
 export type TaskStatus = 'running' | 'success' | 'failed';
 
@@ -41,6 +42,8 @@ const KEEP_FINISHED = 50;
  */
 export class TaskManager extends EventEmitter {
   private tasks = new Map<string, Task>();
+  /** Ids of running `exclusive` tasks. */
+  private exclusive = new Set<string>();
 
   list(): Task[] {
     return [...this.tasks.values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
@@ -57,11 +60,15 @@ export class TaskManager extends EventEmitter {
   /**
    * Starts `fn` in the background and returns the task immediately.
    * `stepNames` pre-populates the checklist so the UI can show what is coming.
+   * An `exclusive` task runs alone: nothing else starts until it ends, including requests that were already
+   * past their own checks when it began.
    */
   start(
-    opts: { type: string; title: string; ref?: string; steps?: string[] },
+    opts: { type: string; title: string; ref?: string; steps?: string[]; exclusive?: boolean },
     fn: (ctx: TaskContext) => Promise<void>,
   ): Task {
+    const alone = [...this.exclusive].map((id) => this.tasks.get(id)).find((t) => t?.status === 'running');
+    if (alone) throw new UserError(`Wait until “${alone.title}” has finished.`, 409, 'BUSY');
     const task: Task = {
       id: randomUUID(),
       type: opts.type,
@@ -73,6 +80,7 @@ export class TaskManager extends EventEmitter {
       startedAt: new Date().toISOString(),
     };
     this.tasks.set(task.id, task);
+    if (opts.exclusive) this.exclusive.add(task.id);
     this.emitTask(task);
 
     const ensureStep = (name: string): TaskStep => {
@@ -147,6 +155,7 @@ export class TaskManager extends EventEmitter {
 
   private finish(task: Task): void {
     task.finishedAt = new Date().toISOString();
+    this.exclusive.delete(task.id);
     this.emitTask(task);
     const finished = this.list().filter((t) => t.status !== 'running');
     for (const old of finished.slice(KEEP_FINISHED)) this.tasks.delete(old.id);
