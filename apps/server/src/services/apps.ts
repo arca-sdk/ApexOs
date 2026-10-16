@@ -379,7 +379,6 @@ function appGpus(config: Record<string, unknown> | undefined): TnGpuValues | und
 
 /** Turns the graphics cards on or off for an installed app; the app is redeployed. */
 export async function startGpuChange(ctx: AppContext, name: string, enabled: boolean) {
-  assertAppsNotMoving(ctx);
   const app = await requireApp(ctx, name);
   const client = ctx.truenas.client();
   const config = await client.call<Record<string, unknown>>('app.config', [name]);
@@ -388,6 +387,7 @@ export async function startGpuChange(ctx: AppContext, name: string, enabled: boo
   const { choices } = await readGpus(client);
   if (enabled && !choices.length) throw new UserError('This server has no graphics card apps can use.', 409, 'NO_GPU');
   if (ctx.tasks.findRunning('app-gpu', name)) throw new UserError('This app is already being changed.', 409, 'BUSY');
+  assertAppsNotMoving(ctx);
   const resources = config.resources as Record<string, unknown>;
   return ctx.tasks.start(
     { type: 'app-gpu', title: `Turning ${enabled ? 'on' : 'off'} the graphics card for ${displayName(app)}`, ref: name },
