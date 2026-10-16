@@ -5,7 +5,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { AppsResponse, CatalogAppDetail, Task } from '@apexos/api-types';
 import { startMockTrueNas, type MockTrueNas } from '@apexos/mock-truenas';
@@ -121,6 +121,26 @@ describe('graphics cards for apps', () => {
       const values = await ctx.truenas.client().call<{ immich: { ml_image_selector: string } }>('app.config', ['immich']);
       expect(values.immich.ml_image_selector).toBe('ml_rocm_image');
     } finally {
+      mock.state.rocmDevice = false;
+    }
+  });
+
+  it('notes the Immich switch wasn’t checked when its settings can’t be read after install', async () => {
+    const client = ctx.truenas.client();
+    await client.job('app.delete', ['immich', { remove_images: true, remove_ix_volumes: true }]); // frees its port
+    mock.state.rocmDevice = true;
+    const original = client.call.bind(client);
+    // Only the read right after the install fails; the install itself goes through.
+    const spy = vi
+      .spyOn(client, 'call')
+      .mockImplementation(((method: string, params?: unknown[]) =>
+        method === 'app.config' && params?.[0] === 'immich' ? Promise.reject(new Error('busy')) : original(method, params)) as typeof client.call);
+    try {
+      const task = await finished(await ok<{ task: Task }>('POST', '/api/apps/install', { catalogApp: 'immich', train: 'community', answers: {}, useGpu: true }));
+      expect(task.status).toBe('success');
+      expect(task.steps.find((s) => s.name === 'Switching machine learning to the graphics card')).toMatchObject({ status: 'skipped', message: expect.stringContaining('Turn the graphics card off and on') });
+    } finally {
+      spy.mockRestore();
       mock.state.rocmDevice = false;
     }
   });

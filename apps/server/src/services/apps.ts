@@ -289,12 +289,17 @@ async function runInstall(ctx: AppContext, req: InstallRequest, requestedName: s
  */
 async function finishGpuSettings(ctx: AppContext, task: TaskContext, name: string, catalogApp: string, choices: TnGpuChoice[]): Promise<void> {
   const client = ctx.truenas.client();
-  const config = await client.call<Record<string, unknown>>('app.config', [name]).catch(() => null);
-  if (!config) return;
-  const values = gpuAppValues(catalogApp, choices, true, config);
-  const selector = (v: unknown) => (v && typeof v === 'object' ? (v as { ml_image_selector?: unknown }).ml_image_selector : undefined);
-  if (!values.immich || selector(values.immich) === selector(config.immich)) return;
   const step = 'Switching machine learning to the graphics card';
+  const selector = (v: unknown) => (v && typeof v === 'object' ? (v as { ml_image_selector?: unknown }).ml_image_selector : undefined);
+  const config = await client.call<Record<string, unknown>>('app.config', [name]).catch(() => null);
+  if (!config) {
+    // Only the AMD image depends on what TrueNAS found; when that can't be read, say the switch wasn't checked.
+    const withRocm = gpuAppValues(catalogApp, choices, true, { resources: { gpus: { kfd_device_exists: true } } });
+    if (selector(withRocm.immich) === 'ml_rocm_image') task.skip(step, 'Couldn’t read the app’s settings to check. Turn the graphics card off and on again from the Apps page.');
+    return;
+  }
+  const values = gpuAppValues(catalogApp, choices, true, config);
+  if (!values.immich || selector(values.immich) === selector(config.immich)) return;
   await task
     .step(step, (report) =>
       client.job('app.update', [name, { values }], (job) => report(job.progress.percent ?? 0, job.progress.description ?? undefined)),
