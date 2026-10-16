@@ -540,11 +540,14 @@ async function finishMove(ctx: AppContext, id: string, t?: TaskContext): Promise
   });
 
   await step('Starting apps again', async () => {
-    const apps = await client.call<TnApp[]>('app.query').catch(() => [] as TnApp[]);
+    // Without the app list every stopped app is started anyway; only a list that answers can say one is gone.
+    const apps = await client.call<TnApp[]>('app.query').catch(() => null);
     for (const name of r.stoppedApps) {
-      const app = apps.find((a) => a.name === name);
-      if (!app || app.state === 'RUNNING' || app.state === 'DEPLOYING') continue;
-      await client.job('app.start', [name]).catch((err: Error) => warnings.push(`${appTitle(app)} didn’t start again (${errorMessage(err)}). Start it from the Apps page.`));
+      const app = apps?.find((a) => a.name === name);
+      if (apps && !app) continue; // uninstalled meanwhile
+      if (app && (app.state === 'RUNNING' || app.state === 'DEPLOYING')) continue;
+      const title = app ? appTitle(app) : name;
+      await client.job('app.start', [name]).catch((err: Error) => warnings.push(`${title} didn’t start again (${errorMessage(err)}). Start it from the Apps page.`));
     }
   });
 
