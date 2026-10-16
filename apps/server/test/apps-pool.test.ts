@@ -15,7 +15,7 @@ import { HostCommands } from '../src/lib/host.ts';
 import { StateStore } from '../src/lib/store.ts';
 import { TaskManager } from '../src/lib/tasks.ts';
 import { TrueNasManager } from '../src/lib/truenas.ts';
-import { oldAppDataHousekeeping } from '../src/services/apps-pool.ts';
+import { adoptPoolForApps, oldAppDataHousekeeping } from '../src/services/apps-pool.ts';
 import { recordTaskNotices } from '../src/services/notifications.ts';
 
 let mock: MockTrueNas;
@@ -80,6 +80,16 @@ describe('the apps pool', () => {
     const p = await preview('HDDs');
     expect(p).toMatchObject({ pool: 'HDDs', currentPool: 'SSDs', currentPoolOffline: false, moving: ['Jellyfin'], oldAppData: false, needsEraseConsent: false, problem: null });
     expect(p.copyBytes).toBeGreaterThan(0);
+  });
+
+  it('waits for folder locks and new pools, which change apps too', async () => {
+    for (const type of ['folder-lock', 'folder-unlock', 'pool-create']) {
+      let release!: () => void;
+      const busy = ctx.tasks.start({ type, title: `Busy with ${type}`, ref: 'x' }, () => new Promise<void>((r) => (release = r)));
+      expect((await preview('HDDs')).problem).toBe(`Wait until “Busy with ${type}” has finished.`);
+      release();
+      await finished({ task: busy });
+    }
   });
 
   it('moves installed apps to another pool and starts them again', async () => {
@@ -164,6 +174,14 @@ describe('the apps pool', () => {
 
   it('gives apps a newly created pool after their pool was deleted', async () => {
     await finished(await ok<{ task: Task }>('DELETE', '/api/storage/pools/' + (await poolId('SSDs')), { confirmName: 'SSDs' }));
+    expect(await engine()).toMatchObject({ pool: null });
+
+    // While a move gives apps a pool, a pool created meanwhile doesn't claim them too.
+    let release!: () => void;
+    const moving = ctx.tasks.start({ type: 'apps-pool', title: 'Moving apps', ref: 'HDDs' }, () => new Promise<void>((r) => (release = r)));
+    expect(await adoptPoolForApps(ctx, 'HDDs')).toBe(false);
+    release();
+    await finished({ task: moving });
     expect(await engine()).toMatchObject({ pool: null });
 
     // Choosing an existing pool is possible too; nothing moves and nothing is erased.

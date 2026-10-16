@@ -20,11 +20,17 @@ function appsDataset(pool: string): string {
   return `${pool}/ix-apps`;
 }
 
+/**
+ * Tasks that change apps or the app engine besides app tasks: locking or unlocking a folder stops or starts the
+ * apps using it, and a new pool can become the apps pool.
+ */
+const APP_CHANGING = new Set(['setup', 'pool-create', 'folder-lock', 'folder-unlock']);
+
 /** A running task that changes apps; a move waits for it (and the other way round). */
 function appTaskRunning(ctx: AppContext): Task | undefined {
   return ctx.tasks
     .list()
-    .find((t) => t.status === 'running' && (t.type === 'setup' || t.type.startsWith('app-') || t.type.startsWith('apps-') || t.type.startsWith('remote-')));
+    .find((t) => t.status === 'running' && (APP_CHANGING.has(t.type) || t.type.startsWith('app-') || t.type.startsWith('apps-') || t.type.startsWith('remote-')));
 }
 
 /** Refuses app changes while apps move to another pool (the app engine is stopped for most of it). */
@@ -147,6 +153,8 @@ export async function startAppsPoolChange(ctx: AppContext, pool: string, eraseOl
  * to choose a pool.
  */
 export async function adoptPoolForApps(ctx: AppContext, pool: string): Promise<boolean> {
+  // A move that runs meanwhile gives apps their pool; two pool changes at once could leave either one.
+  if (ctx.tasks.findRunning('apps-pool')) return false;
   try {
     const client = ctx.truenas.client();
     const config = await client.call<TnDockerConfig>('docker.config');

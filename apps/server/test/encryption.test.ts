@@ -168,6 +168,16 @@ describe('locking and unlocking', () => {
     expect(again.body.error.code).toBe('NOT_LOCKED');
   });
 
+  it('waits while apps move to another pool, since locking stops the apps using a folder', async () => {
+    let release!: () => void;
+    const moving = ctx.tasks.start({ type: 'apps-pool', title: 'Moving apps to SSDs', ref: 'SSDs' }, () => new Promise<void>((r) => (release = r)));
+    const lock = await call<Any>('POST', '/api/folders/Vault/lock');
+    expect([lock.status, lock.body.error.code, lock.body.error.message]).toEqual([409, 'BUSY', 'Wait until “Moving apps to SSDs” has finished.']);
+    release();
+    await finished({ task: moving });
+    expect((await folder('Vault')).encryption!.locked).toBe(false);
+  });
+
   it('keeps passphrase folders locked after a restart and automatic-key folders unlocked', async () => {
     await reboot();
     expect((await folder('Vault')).encryption!.locked).toBe(true);
