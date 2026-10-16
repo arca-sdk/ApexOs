@@ -49,6 +49,7 @@ import {
   type TnCryptoDataset,
   type TnReplicationTask,
 } from './datasets.ts';
+import { assertFolderNotMoving } from './folder-move.ts';
 import { FOLDER_PROPERTY, getFolder, listFolders } from './folders.ts';
 import { addNotice } from './notifications.ts';
 
@@ -606,6 +607,8 @@ export async function startConversion(ctx: AppContext, name: string, req: StartC
   const plan = await checkConversion(ctx, name);
   if (!plan.allowed) throw new UserError(plan.blockers.map((b) => b.message).join(' '), 409, 'CANNOT_CONVERT');
   const { folder } = plan;
+  // After the awaited check, before the record is saved (nothing awaited in between): a move may have started.
+  assertFolderNotMoving(ctx, folder.dataset);
   const record: ConversionRecord = {
     folder: folder.name,
     dataset: folder.dataset,

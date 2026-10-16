@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
+import { assertFolderNotMoving } from '../services/folder-move.ts';
 import {
   addDestination,
   checkDestination,
@@ -84,6 +85,7 @@ export async function backupRoutes(app: FastifyInstance, ctx: AppContext): Promi
   app.post('/api/backups', async (req) => {
     const body = options.extend({ destinationId: z.string().min(1), folders: z.array(z.string().min(1).max(200)).min(1).max(100) }).parse(req.body);
     const plan = await prepareBackups(ctx, body);
+    for (const f of plan.folders) assertFolderNotMoving(ctx, f.dataset);
     const names = plan.folders.map((f) => f.name);
     const task = ctx.tasks.start(
       { type: 'backup-create', title: `Setting up backups to ${plan.destination.name}`, ref: plan.destination.id, steps: names.map((n) => `Setting up ${n}`) },

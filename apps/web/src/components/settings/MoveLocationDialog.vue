@@ -79,6 +79,10 @@ function move() {
         <dd>Kept, hidden, on {{ check.poolDisplayName }} for a week, then removed</dd>
       </dl>
 
+      <ul v-if="check.notes.length" class="notes small">
+        <li v-for="n in check.notes" :key="n" class="row" style="--gap: 8px"><TriangleAlert :size="14" class="warn-icon" /> <span>{{ n }}</span></li>
+      </ul>
+
       <fieldset class="field plain">
         <legend class="field-label">Move to</legend>
         <label v-for="t in check.targets" :key="t.name" class="choice" :class="{ selected: choice === t.name, disabled: !!t.problem }">
@@ -109,6 +113,17 @@ function move() {
 </template>
 
 <style scoped>
+.notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.notes li {
+  align-items: flex-start;
+}
 .blockers {
   list-style: none;
   margin: 0;

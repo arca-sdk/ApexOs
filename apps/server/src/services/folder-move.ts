@@ -32,7 +32,6 @@ import {
   replicationsTouching,
   snapshotNames,
   treeFilter,
-  type TnAttachment,
   type TnReplicationTask,
 } from './datasets.ts';
 import { LOCATION_DEFS, locationDef } from './locations.ts';
@@ -164,18 +163,22 @@ async function checkFolder(ctx: AppContext, ref: FolderRef, opts: { ownRun?: str
   const blockers: LocationMoveCheck['blockers'] = [];
   const block = (code: string, message: string) => blockers.push({ code, message });
 
+  // Every one of these must answer: a check that fails can't be taken as "nothing uses the folder".
+  const required = <T>(p: Promise<T>): Promise<T> =>
+    p.catch((err: Error) => {
+      throw new UserError(`ApexOs couldn’t check what uses ${ref.name}: ${errorMessage(err)}. Try again in a moment.`, 503, 'CHECK_FAILED');
+    });
   const [storage, tree, apps, attached, replications, snapshotTasks, ownShares, parked] = await Promise.all([
     getStorage(ctx),
     queryDatasets(client, [treeFilter(ref.dataset)]),
-    appsUsing(client, ref.path).catch((err: Error) => {
-      throw new UserError(`ApexOs couldn’t check which apps use ${ref.name}: ${errorMessage(err)}`, 503, 'APPS_UNKNOWN');
-    }),
-    attachments(client, ref.dataset).catch(() => [] as TnAttachment[]),
-    client.call<TnReplicationTask[]>('replication.query').catch(() => [] as TnReplicationTask[]),
-    client.call<{ id: number; dataset: string }[]>('pool.snapshottask.query').catch(() => []),
-    client.call<TnSmbShare[]>('sharing.smb.query', [[['path', '=', ref.path]]]).catch(() => [] as TnSmbShare[]),
-    client.call<{ id: string }[]>('pool.dataset.query', [[['id', '^', `${ref.pool}/${OLD_PREFIX}${ref.name}-`]], { extra: { retrieve_children: false, properties: [] } }]).catch(() => []),
+    required(appsUsing(client, ref.path)),
+    required(attachments(client, ref.dataset)),
+    required(client.call<TnReplicationTask[]>('replication.query')),
+    required(client.call<TnSnapshotTask[]>('pool.snapshottask.query')),
+    required(client.call<TnSmbShare[]>('sharing.smb.query', [[['path', '=', ref.path]]])),
+    required(client.call<{ id: string }[]>('pool.dataset.query', [[['id', '^', `${ref.pool}/${OLD_PREFIX}${ref.name}-`]], { extra: { retrieve_children: false, properties: [] } }])),
   ]);
+  const notes: string[] = [];
   const source = storage.pools.find((p) => p.name === ref.pool);
   const self = tree.find((d) => d.id === ref.dataset);
   const locations = LOCATION_DEFS.filter((d) => {
@@ -191,6 +194,12 @@ async function checkFolder(ctx: AppContext, ref: FolderRef, opts: { ownRun?: str
     block('BACKUPS', `${ref.name} is backed up to another server. Remove its backup on the Backups page first, move it, then add the backup again.`);
   } else if (snapshotTasks.some((t) => inside(t.dataset, ref.dataset))) {
     block('SNAPSHOT_TASKS', `TrueNAS takes scheduled snapshots of ${ref.name}. Remove that snapshot task in TrueNAS first; it would keep pointing at the old pool.`);
+  }
+  // A recursive task on the pool (or a folder above) covers this folder today but not at its new place.
+  for (const t of snapshotTasks) {
+    if (t.dataset !== ref.dataset && inside(ref.dataset, t.dataset) && t.recursive && !(t.exclude ?? []).some((e) => inside(ref.dataset, e))) {
+      notes.push(`TrueNAS’s scheduled snapshots of ${t.dataset} include ${ref.name} today. After the move they no longer do; add a snapshot task for ${ref.name} on its new pool in TrueNAS if you want them.`);
+    }
   }
   const ownShareNames = new Set(ownShares.map((s) => s.name.toLowerCase()));
   for (const a of attached.filter((x) => !isAppAttachment(x))) {
@@ -209,12 +218,12 @@ async function checkFolder(ctx: AppContext, ref: FolderRef, opts: { ownRun?: str
   if (conversion) block('BUSY', `Encryption is being turned on for ${conversion.folder}. Wait until that has finished.`);
   const other = unfinished(ctx);
   if (other && other.id !== opts.ownRun) block('BUSY', `${other.name} is being moved. One folder at a time, so wait until that has finished.`);
-  const appTask = ctx.tasks.list().find((t) => t.status === 'running' && (t.type.startsWith('app-') || t.type.startsWith('apps-') || t.type.startsWith('remote-')));
-  if (appTask) block('BUSY', `Wait until “${appTask.title}” has finished.`);
+  const busyTask = conflictingTask(ctx);
+  if (busyTask) block('BUSY', `Wait until “${busyTask.title}” has finished.`);
 
   const usedBytes = self ? propNumber(self.used) : 0;
   const spaceNeededBytes = Math.ceil(usedBytes * 1.03) + GiB;
-  const roots = await queryDatasets(client, [['id', 'in', storage.pools.map((p) => p.name)]]).catch(() => []);
+  const roots = await required(queryDatasets(client, [['id', 'in', storage.pools.map((p) => p.name)]]));
   const encryptedRoots = new Set(roots.filter((d) => d.encrypted).map((d) => d.id));
   const targets: LocationMoveCheck['targets'] = storage.pools
     .filter((p) => p.name !== ref.pool)
@@ -242,8 +251,27 @@ async function checkFolder(ctx: AppContext, ref: FolderRef, opts: { ownRun?: str
     spaceNeededBytes,
     duration: durationOf(usedBytes),
     blockers,
+    notes,
     targets,
   };
+}
+
+interface TnSnapshotTask {
+  id: number;
+  dataset: string;
+  recursive: boolean;
+  exclude?: string[];
+}
+
+/** Work that must not overlap a move: app changes, moving apps, and setting up backups or encryption. */
+function conflictingTask(ctx: AppContext): Task | undefined {
+  return ctx.tasks
+    .list()
+    .find(
+      (t) =>
+        t.status === 'running' &&
+        (t.type.startsWith('app-') || t.type.startsWith('apps-') || t.type.startsWith('remote-') || t.type === 'backup-create' || t.type === 'folder-encrypt'),
+    );
 }
 
 /** Names of datasets that exist on a pool: the destination folder must not be one of them. */
@@ -275,20 +303,25 @@ export async function startLocationMove(ctx: AppContext, id: string, pool: strin
   if (target.problem) throw new UserError(target.problem, 409, 'CANNOT_MOVE');
   const client = ctx.truenas.client();
   if (await nameTaken(client, `${pool}/${plan.folder}`)) throw new UserError(`${target.displayName} already has a folder called ${plan.folder}.`, 409, 'NAME_TAKEN');
+  const temp = `${pool}/${TEMP_PREFIX}${plan.folder}`;
+  if (await nameTaken(client, temp)) {
+    throw new UserError(`A dataset called “${temp}” is in the way, maybe left from an earlier attempt. Remove it in TrueNAS, then try again.`, 409, 'NAME_TAKEN');
+  }
 
   // Checked again after the awaits above; from here to registering the task nothing is awaited, so neither
   // another move nor an app change can start in between.
   if (unfinished(ctx)) throw new UserError('Another folder is being moved. Wait until that has finished.', 409, 'BUSY');
   assertAppsNotMoving(ctx);
-  const appTask = ctx.tasks.list().find((t) => t.status === 'running' && (t.type.startsWith('app-') || t.type.startsWith('apps-') || t.type.startsWith('remote-')));
-  if (appTask) throw new UserError(`Wait until “${appTask.title}” has finished.`, 409, 'BUSY');
+  const busyTask = conflictingTask(ctx);
+  if (busyTask) throw new UserError(`Wait until “${busyTask.title}” has finished.`, 409, 'BUSY');
 
   const record: FolderMoveRecord = {
     id: randomUUID(),
     name: plan.folder,
     source: plan.ref.dataset,
     target: `${pool}/${plan.folder}`,
-    temp: `${pool}/${TEMP_PREFIX}${plan.folder}`,
+    temp,
+    tempCreated: false,
     original: plan.original,
     status: 'running',
     step: null,
@@ -298,7 +331,7 @@ export async function startLocationMove(ctx: AppContext, id: string, pool: strin
     switched: false,
     share: null,
     stoppedApps: [],
-    warnings: [],
+    warnings: [...plan.notes],
     startedAt: new Date().toISOString(),
     removeAfter: null,
   };
@@ -355,10 +388,12 @@ async function runMove(ctx: AppContext, id: string, t: TaskContext): Promise<voi
     await step('Copying files', async (progress) => {
       await ensureSnapshot(client, r.source, `${SNAPSHOT_PREFIX}1`);
       if (await getDataset(client, r.temp)) {
+        if (!r.tempCreated) throw new UserError(`A dataset called “${r.temp}” is in the way. Remove it in TrueNAS, then try again.`, 409, 'NAME_TAKEN');
         if ((await snapshotNames(client, r.temp)).includes(`${SNAPSHOT_PREFIX}1`)) return;
-        // A copy that never got its first snapshot is a half-received leftover: start again.
+        // A copy this move started but that never got its first snapshot is a half-received leftover: start again.
         await client.call('pool.dataset.delete', [r.temp, { recursive: true }]);
       }
+      r = await patch(ctx, id, { tempCreated: true });
       await client.job('replication.run_onetime', [replicationArgs(r, true)], report(progress));
     });
 
@@ -505,13 +540,13 @@ async function finishMove(ctx: AppContext, id: string, t?: TaskContext): Promise
     step: null,
     error: null,
     stoppedApps: [],
-    warnings,
+    warnings: [...r.warnings, ...warnings],
     removeAfter: new Date(Date.now() + OLD_COPY_DAYS * DAY).toISOString(),
   });
   await addNotice(ctx, {
-    level: warnings.length ? 'warning' : 'info',
+    level: r.warnings.length ? 'warning' : 'info',
     title: `${r.name} moved to ${r.target.split('/')[0]}`,
-    message: warnings.length ? warnings.join(' ') : `The old copy stays on ${r.source.split('/')[0]} for ${OLD_COPY_DAYS} days, then ApexOs removes it.`,
+    message: r.warnings.length ? r.warnings.join(' ') : `The old copy stays on ${r.source.split('/')[0]} for ${OLD_COPY_DAYS} days, then ApexOs removes it.`,
     link: '/settings',
   }).catch(() => undefined);
   ctx.bus.changed('apps');
@@ -523,6 +558,7 @@ async function finishMove(ctx: AppContext, id: string, t?: TaskContext): Promise
 /** Before the switch-over the original is untouched: share it again, start the apps, drop the copy. Returns what's left over. */
 async function undoBeforeSwitch(ctx: AppContext, r: FolderMoveRecord): Promise<string | null> {
   const client = ctx.truenas.client();
+  r = await reconcile(ctx, r);
   const problems: string[] = [];
   const attempt = (what: string, fn: () => Promise<unknown>) => fn().catch((err: Error) => problems.push(`${what}: ${errorMessage(err)}`));
   if (r.renamedOriginal) {
@@ -534,7 +570,7 @@ async function undoBeforeSwitch(ctx: AppContext, r: FolderMoveRecord): Promise<s
   if (r.share?.wasEnabled) await attempt('sharing it again', () => client.call('sharing.smb.update', [r.share!.id, { enabled: true }]));
   for (const name of r.stoppedApps) await attempt(`starting ${name}`, () => client.job('app.start', [name]));
   await attempt('removing the copy', async () => {
-    if (await getDataset(client, r.temp)) await client.call('pool.dataset.delete', [r.temp, { recursive: true }]);
+    if (r.tempCreated && (await getDataset(client, r.temp))) await client.call('pool.dataset.delete', [r.temp, { recursive: true }]);
   });
   for (const n of [1, 2]) await attempt('removing snapshots', () => dropSnapshot(client, r.source, `${SNAPSHOT_PREFIX}${n}`));
   return problems.length ? `ApexOs couldn’t finish cleaning up (${problems.join('; ')}); it tries again later.` : null;
@@ -577,6 +613,10 @@ export async function startOldCopyRemoval(ctx: AppContext, id: string): Promise<
   const r = recordById(ctx, id);
   if (r.status !== 'done') throw new UserError('This move hasn’t finished yet.', 409, 'BUSY');
   if (ctx.tasks.findRunning('folder-move-old', r.name)) throw new UserError('The old copy is already being removed.', 409, 'BUSY');
+  return startRemoval(ctx, r);
+}
+
+function startRemoval(ctx: AppContext, r: FolderMoveRecord): Task {
   return ctx.tasks.start({ type: 'folder-move-old', title: `Removing the old copy of ${r.name}`, ref: r.name }, (t) =>
     t.step('Removing the old copy', () => removeOldCopy(ctx, r)),
   );
@@ -594,27 +634,60 @@ async function removeOldCopy(ctx: AppContext, r: FolderMoveRecord): Promise<void
 }
 
 /**
+ * After a restart the saved flags can lag one rename behind what happened (ApexOs may have stopped between a
+ * rename and saving it), so they are set from the datasets that actually exist.
+ */
+async function reconcile(ctx: AppContext, r: FolderMoveRecord): Promise<FolderMoveRecord> {
+  const found = new Set((await queryDatasets(ctx.truenas.client(), [['id', 'in', [r.source, r.original, r.temp, r.target]]])).map((d) => d.id));
+  const change: Partial<FolderMoveRecord> = {};
+  if (!r.renamedOriginal && !found.has(r.source) && found.has(r.original)) change.renamedOriginal = true;
+  // The copy was renamed into place: it is gone under its hidden name and the folder exists on the new pool.
+  if (!r.switched && r.tempCreated && !found.has(r.temp) && found.has(r.target) && found.has(r.original)) change.switched = true;
+  return Object.keys(change).length ? patch(ctx, r.id, change) : r;
+}
+
+/**
  * Hourly (and once TrueNAS is reachable after start-up): finishes moves that were switched over when ApexOs
- * stopped, cleans up ones that weren't, and removes old copies whose week is up.
+ * stopped, undoes ones that weren't, and removes old copies whose week is up. Each runs as a registered task,
+ * started with nothing awaited after its checks, so app changes wait for it and runs never overlap.
  */
 export async function folderMoveHousekeeping(ctx: AppContext): Promise<void> {
   if (!ctx.truenas.connected) return;
   for (const r of records(ctx)) {
-    const live = r.taskId ? ctx.tasks.get(r.taskId)?.status === 'running' : false;
-    if (live) continue;
-    try {
-      if (r.status === 'done') {
-        if (r.removeAfter && Date.parse(r.removeAfter) <= Date.now() && !ctx.tasks.findRunning('folder-move-old', r.name)) await removeOldCopy(ctx, r);
-      } else if (r.switched) {
-        await followNewPath(ctx, r);
-        await finishMove(ctx, r.id);
-      } else {
-        const left = await undoBeforeSwitch(ctx, r);
-        if (left) await patch(ctx, r.id, { status: 'failed', error: left });
-        else await forget(ctx, r.id);
-      }
-    } catch {
-      // Tried again next time.
+    if (r.taskId && ctx.tasks.get(r.taskId)?.status === 'running') continue;
+    if (r.status === 'done') {
+      if (r.removeAfter && Date.parse(r.removeAfter) <= Date.now() && !ctx.tasks.findRunning('folder-move-old', r.name)) startRemoval(ctx, r);
+    } else if (!ctx.tasks.findRunning('folder-move')) {
+      startRecovery(ctx, r);
     }
   }
+}
+
+function startRecovery(ctx: AppContext, r: FolderMoveRecord): Task {
+  const task = ctx.tasks.start({ type: 'folder-move', title: `Recovering the move of ${r.name}`, ref: r.name }, async (t) => {
+    const current = await reconcile(ctx, recordById(ctx, r.id));
+    if (current.switched) {
+      await t.step('Following the new place', () => followNewPath(ctx, current));
+      await finishMove(ctx, r.id, t);
+      return;
+    }
+    const left = await t.step('Undoing the move', () => undoBeforeSwitch(ctx, current));
+    if (left) {
+      await patch(ctx, r.id, { status: 'failed', error: left });
+      throw new UserError(left, 500, 'CLEANUP_INCOMPLETE');
+    }
+    await forget(ctx, r.id);
+    await addNotice(ctx, {
+      level: 'warning',
+      title: `Moving ${r.name} didn’t finish`,
+      message: `ApexOs restarted during the move, so it was undone: ${r.name} is still on its pool and everything that was stopped runs again.`,
+      link: '/settings',
+    }).catch(() => undefined);
+  });
+  // Saved in memory right away (only the disk write is awaited), so another housekeeping run sees it.
+  void ctx.store.update((s) => {
+    const rec = s.folderMoves?.find((x) => x.id === r.id);
+    if (rec) rec.taskId = task.id;
+  });
+  return task;
 }

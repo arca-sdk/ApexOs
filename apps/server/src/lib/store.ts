@@ -228,6 +228,8 @@ export interface FolderMoveRecord {
   target: string;
   /** Hidden copy on the new pool that becomes the folder at the switch-over. */
   temp: string;
+  /** This move started the copy (so only then may it reuse or delete a dataset with that name). */
+  tempCreated?: boolean;
   /** Hidden name the old folder gets at the switch-over (it is kept as the old copy). */
   original: string;
   status: 'running' | 'failed' | 'done';

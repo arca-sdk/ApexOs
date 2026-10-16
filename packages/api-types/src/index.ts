@@ -475,6 +475,8 @@ export interface LocationMoveCheck {
   duration: ConversionDuration;
   /** Why the folder can't move right now, whatever the destination. */
   blockers: { code: string; message: string }[];
+  /** Things to know that don't stop the move (they are repeated when it finishes). */
+  notes: string[];
   /** Pools it could move to; `problem` explains why one can't be used. */
   targets: { name: string; displayName: string; kind: PoolKind; freeBytes: number; problem: string | null }[];
 }

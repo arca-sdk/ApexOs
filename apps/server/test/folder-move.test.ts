@@ -93,7 +93,14 @@ afterAll(async () => {
 describe('moving a location to another pool', () => {
   it('explains what moves, who is affected and where it can go', async () => {
     const check = await ok<LocationMoveCheck>('GET', '/api/locations/Photos/move');
-    expect(check).toMatchObject({ folder: 'Photos', pool: 'HDDs', locations: ['Photos'], apps: ['Jellyfin'], blockers: [] });
+    expect(check).toMatchObject({ folder: 'Photos', pool: 'HDDs', locations: ['Photos'], apps: ['Jellyfin'], blockers: [], notes: [] });
+
+    // A recursive snapshot task on the pool covers the folder today, but not at its new place.
+    const snap = await tn<{ id: number }>('pool.snapshottask.create', [
+      { dataset: 'HDDs', recursive: true, naming_schema: 'auto-%Y%m%d-%H%M', lifetime_value: 2, lifetime_unit: 'WEEK', schedule: { minute: '0', hour: '*', dom: '*', month: '*', dow: '*' } },
+    ]);
+    expect((await ok<LocationMoveCheck>('GET', '/api/locations/Photos/move')).notes).toEqual([expect.stringMatching(/snapshots of HDDs include Photos/)]);
+    await tn('pool.snapshottask.delete', [snap.id]);
     expect(check.targets).toEqual([expect.objectContaining({ name: 'SSDs', problem: null })]);
 
     // A child location moves its whole folder; Media doesn't fit on the SSDs.
@@ -160,6 +167,7 @@ describe('moving a location to another pool', () => {
           source: 'HDDs/Documents',
           target: 'SSDs/Documents',
           temp: 'SSDs/.apexos-move-Documents',
+          tempCreated: true,
           original: 'HDDs/.apexos-moved-Documents-20261015',
           status: 'running',
           step: 'Copying the latest changes',
@@ -178,10 +186,70 @@ describe('moving a location to another pool', () => {
     expect((await ok<FolderMove[]>('GET', '/api/locations/moves'))[0]).toMatchObject({ state: 'failed' });
 
     await folderMoveHousekeeping(ctx);
+    // Recovery runs as a folder-move task, so app changes wait for it.
+    const recovery = ctx.tasks.findRunning('folder-move', 'Documents')!;
+    expect(recovery.title).toBe('Recovering the move of Documents');
+    const stop = await call<{ error: { code: string } }>('POST', '/api/apps/jellyfin/stop');
+    expect(stop.status).toBe(409);
+    await finished({ task: recovery });
     expect(ctx.store.get().folderMoves).toEqual([]);
     expect(await share('Documents')).toMatchObject({ path: '/mnt/HDDs/Documents', enabled: true });
     expect((await jellyfin()).state).toBe('RUNNING');
     expect(await datasetIds('SSDs/.apexos-move-')).toEqual([]);
     expect(await tn('pool.snapshot.query', [[['snapshot_name', '^', 'apexos-move-']]])).toEqual([]);
+  });
+
+  it('refuses a dataset in the way of its hidden copy, and leaves it alone', async () => {
+    await tn('pool.snapshot.create', [{ dataset: 'HDDs/Documents', name: 'in-the-way', recursive: true }]);
+    await ctx.truenas.client().job('replication.run_onetime', [
+      { direction: 'PUSH', transport: 'LOCAL', source_datasets: ['HDDs/Documents'], target_dataset: 'SSDs/.apexos-move-Documents', recursive: true, properties: true, name_regex: '.*', retention_policy: 'NONE', readonly: 'IGNORE', only_from_scratch: true },
+    ]);
+    const refused = await call<{ error: { code: string } }>('POST', '/api/locations/Documents/move', { pool: 'SSDs' });
+    expect([refused.status, refused.body.error.code]).toEqual([409, 'NAME_TAKEN']);
+    expect(await datasetIds('SSDs/.apexos-move-Documents')).toContain('SSDs/.apexos-move-Documents');
+    await tn('pool.dataset.delete', ['SSDs/.apexos-move-Documents', { recursive: true }]);
+    await tn('pool.snapshot.delete', ['HDDs/Documents@in-the-way', { recursive: true }]);
+  });
+
+  it('finishes a move that had switched over when ApexOs stopped, even before it saved that', async () => {
+    // As if ApexOs stopped right after both renames, before writing either of them down.
+    const [docs] = await tn<{ id: number }[]>('sharing.smb.query', [[['name', '=', 'Documents']]]);
+    await tn('sharing.smb.update', [docs!.id, { enabled: false }]);
+    await tn('pool.snapshot.create', [{ dataset: 'HDDs/Documents', name: 'apexos-move-1', recursive: true }]);
+    await ctx.truenas.client().job('replication.run_onetime', [
+      { direction: 'PUSH', transport: 'LOCAL', source_datasets: ['HDDs/Documents'], target_dataset: 'SSDs/.apexos-move-Documents', recursive: true, properties: true, name_regex: '.*', retention_policy: 'NONE', readonly: 'IGNORE', only_from_scratch: true },
+    ]);
+    await tn('pool.dataset.rename', ['HDDs/Documents', { new_name: 'HDDs/.apexos-moved-Documents-20261016', force: true }]);
+    await tn('pool.dataset.rename', ['SSDs/.apexos-move-Documents', { new_name: 'SSDs/Documents', force: true }]);
+    await ctx.store.update((s) => {
+      s.folderMoves = [
+        {
+          id: 'crashed',
+          name: 'Documents',
+          source: 'HDDs/Documents',
+          target: 'SSDs/Documents',
+          temp: 'SSDs/.apexos-move-Documents',
+          tempCreated: true,
+          original: 'HDDs/.apexos-moved-Documents-20261016',
+          status: 'running',
+          step: 'Switching over',
+          error: null,
+          taskId: null,
+          renamedOriginal: false,
+          switched: false,
+          share: { id: docs!.id, wasEnabled: true },
+          stoppedApps: [],
+          warnings: [],
+          startedAt: new Date().toISOString(),
+          removeAfter: null,
+        },
+      ];
+    });
+
+    await folderMoveHousekeeping(ctx);
+    await finished({ task: ctx.tasks.findRunning('folder-move', 'Documents')! });
+    expect(ctx.store.get().folderMoves).toEqual([expect.objectContaining({ id: 'crashed', status: 'done', switched: true, renamedOriginal: true })]);
+    expect(ctx.store.get().preferences.locations).toMatchObject({ Documents: '/mnt/SSDs/Documents' });
+    expect(await share('Documents')).toMatchObject({ path: '/mnt/SSDs/Documents', enabled: true });
   });
 });
