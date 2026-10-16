@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { AppContext } from '../app.ts';
+import { assertAppsNotMoving } from '../services/apps-pool.ts';
 import {
   buildRecoveryFile,
   changeKeyMode,
@@ -25,12 +26,15 @@ const HOUR = 3600_000;
 export async function encryptionRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
   app.post('/api/folders/:name/lock', async (req) => {
     const folder = await prepareLock(ctx, nameParam.parse(req.params).name);
+    // Locking stops the apps using the folder (and unlocking starts them), which can't happen while apps move.
+    assertAppsNotMoving(ctx);
     return { task: ctx.tasks.start({ type: 'folder-lock', title: `Locking folder ${folder.name}`, ref: folder.name }, (t) => lockFolder(ctx, folder, t)) };
   });
 
   app.post('/api/folders/:name/unlock', async (req) => {
     const body = z.object({ passphrase: secret.optional(), key: z.string().max(128).optional() }).parse(req.body ?? {});
     const folder = await prepareUnlock(ctx, nameParam.parse(req.params).name, body);
+    assertAppsNotMoving(ctx);
     return {
       task: ctx.tasks.start({ type: 'folder-unlock', title: `Unlocking folder ${folder.name}`, ref: folder.name }, (t) => unlockFolder(ctx, folder, body, t)),
     };
@@ -42,6 +46,8 @@ export async function encryptionRoutes(app: FastifyInstance, ctx: AppContext): P
       .parse(req.body ?? {});
     const folder = await prepareKeyModeChange(ctx, nameParam.parse(req.params).name, body);
     const title = body.mode === 'passphrase' ? `Setting a passphrase for ${folder.name}` : `Switching ${folder.name} to an automatic key`;
+    // Switching to an automatic key unlocks the folder and starts the apps that were stopped with it.
+    assertAppsNotMoving(ctx);
     return { task: ctx.tasks.start({ type: 'folder-key-mode', title, ref: folder.name }, (t) => changeKeyMode(ctx, folder, body, t)) };
   });
 

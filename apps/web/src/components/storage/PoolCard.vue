@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** One pool on the Storage page: capacity ring, protection, live progress, health and actions. */
 import { computed } from 'vue';
-import { FileWarning, HardDrive, Layers, LifeBuoy, Pencil, Plus, ScanSearch, Shield, ShieldAlert, ShieldCheck, Trash2, TrendingUp, Wrench } from 'lucide-vue-next';
+import { Boxes, FileWarning, HardDrive, Layers, LifeBuoy, Pencil, Plus, ScanSearch, Shield, ShieldAlert, ShieldCheck, Trash2, TrendingUp, Wrench } from 'lucide-vue-next';
 import type { Pool, Task } from '@apexos/api-types';
 import CapacityRing from '../CapacityRing.vue';
 import HealthBadge from '../HealthBadge.vue';
@@ -11,7 +11,7 @@ import TaskProgress from './TaskProgress.vue';
 import { formatBytes, toleranceText } from '../../lib/format.ts';
 
 const props = defineProps<{ pool: Pool; tasks?: Task[]; scrubBusy?: boolean; scrubError?: string | null }>();
-const emit = defineEmits<{ drives: []; scrub: []; rename: []; addDrive: []; addSpare: []; delete: []; errors: [] }>();
+const emit = defineEmits<{ drives: []; scrub: []; rename: []; addDrive: []; addSpare: []; apps: []; delete: []; errors: []; removeOldAppData: [] }>();
 
 const tolerance = computed(() => props.pool.layout.faultTolerance);
 const ProtectionIcon = computed(() => (tolerance.value === null ? Shield : tolerance.value > 0 ? ShieldCheck : ShieldAlert));
@@ -26,6 +26,11 @@ const growText = computed(() =>
 );
 const detailClass = computed(() => ({ degraded: 'warn', offline: 'err', errors: 'err', rebuilding: '', healthy: '', unknown: 'warn' })[props.pool.health]);
 const scanRunning = computed(() => props.pool.scan?.state === 'running');
+const oldAppDataRemoval = computed(() => {
+  const iso = props.pool.oldAppData?.removeAfter;
+  if (!iso) return '';
+  return Date.parse(iso) <= Date.now() ? 'soon' : `on ${new Date(iso).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}`;
+});
 
 /** Damaged-file state from the server (only present for pools that look damaged). */
 const damage = computed(() => {
@@ -62,6 +67,17 @@ const menu = computed<MenuItem[]>(() => [
     disabled: !tolerance.value,
     hint: tolerance.value ? undefined : 'Spares only help pools that have protection.',
   },
+  ...(props.pool.isAppsPool
+    ? []
+    : [
+        {
+          key: 'apps',
+          label: 'Use for apps…',
+          icon: Boxes,
+          disabled: props.pool.health === 'offline',
+          hint: props.pool.health === 'offline' ? 'Reconnect this pool’s drives first.' : undefined,
+        },
+      ]),
   { key: 'delete', label: 'Delete pool…', icon: Trash2, danger: true },
 ]);
 
@@ -69,6 +85,7 @@ function onMenu(key: string) {
   if (key === 'rename') emit('rename');
   else if (key === 'addDrive') emit('addDrive');
   else if (key === 'addSpare') emit('addSpare');
+  else if (key === 'apps') emit('apps');
   else if (key === 'delete') emit('delete');
 }
 </script>
@@ -114,6 +131,15 @@ function onMenu(key: string) {
       </div>
     </div>
     <p v-else-if="pool.healthDetail" class="callout" :class="detailClass">{{ pool.healthDetail }}</p>
+    <div v-if="pool.oldAppData" class="callout small stack" style="--gap: 6px">
+      <span>
+        <strong>Old app data ({{ formatBytes(pool.oldAppData.usedBytes) }})</strong> is left here from before your apps moved to
+        {{ pool.oldAppData.movedTo }}. ApexOs removes it {{ oldAppDataRemoval }}.
+      </span>
+      <div>
+        <button class="btn small" @click="emit('removeOldAppData')"><Trash2 :size="14" aria-hidden="true" /> Remove now</button>
+      </div>
+    </div>
     <p v-if="!pool.scrubScheduled" class="callout warn small">
       This pool has no regular health check scheduled. Run <strong>Check pool</strong> now and then to catch damage early.
     </p>

@@ -8,6 +8,7 @@ import { Download, HardDrive, Plus, TriangleAlert } from 'lucide-vue-next';
 import type { Drive, NewPoolSpec, Pool, StorageOverview, Task, TaskStarted } from '@apexos/api-types';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import PageState from '../components/PageState.vue';
+import AppsPoolDialog from '../components/apps/AppsPoolDialog.vue';
 import AddDriveDialog from '../components/storage/AddDriveDialog.vue';
 import AddPoolDialog from '../components/storage/AddPoolDialog.vue';
 import AddSpareDialog from '../components/storage/AddSpareDialog.vue';
@@ -32,6 +33,8 @@ type Dialog =
   | { kind: 'addDrive'; poolId: number; fromPanel: boolean }
   | { kind: 'addSpare'; poolId: number; fromPanel: boolean }
   | { kind: 'rename'; poolId: number }
+  | { kind: 'apps'; poolId: number }
+  | { kind: 'oldAppData'; poolId: number }
   | { kind: 'errors'; poolId: number }
   | { kind: 'delete'; poolId: number };
 
@@ -86,7 +89,7 @@ watch(dialogPool, (pool) => {
 });
 
 function poolTasks(pool: Pool): Task[] {
-  return Object.values(live.tasks).filter((t) => t.status === 'running' && t.type.startsWith('pool-') && t.ref === pool.displayName);
+  return Object.values(live.tasks).filter((t) => t.status === 'running' && (t.type.startsWith('pool-') || t.type.startsWith('apps-')) && t.ref === pool.displayName);
 }
 
 function closeSub() {
@@ -147,6 +150,16 @@ const deleteMessage = computed(() => {
   return `Everything on ${p.displayName} is erased for good: its folders, files${p.isAppsPool ? ', app data' : ''} and restore points. Its ${drives} ${drives === 1 ? 'drive becomes' : 'drives become'} free for other uses. This can’t be undone.`;
 });
 
+// Remove the app data TrueNAS left on a pool when apps moved away
+const oldAppDataRunner = useTaskRunner(() => {
+  dialog.value = null;
+  void load(true);
+});
+function openOldAppData(pool: Pool) {
+  oldAppDataRunner.error.value = null;
+  dialog.value = { kind: 'oldAppData', poolId: pool.id };
+}
+
 function openCreate() {
   createRunner.error.value = null;
   createRunner.fieldErrors.value = {};
@@ -203,6 +216,8 @@ const totals = computed(() => {
           @rename="dialog = { kind: 'rename', poolId: pool.id }"
           @add-drive="dialog = { kind: 'addDrive', poolId: pool.id, fromPanel: false }"
           @add-spare="dialog = { kind: 'addSpare', poolId: pool.id, fromPanel: false }"
+          @apps="dialog = { kind: 'apps', poolId: pool.id }"
+          @remove-old-app-data="openOldAppData(pool)"
           @delete="openDelete(pool)"
           @errors="dialog = { kind: 'errors', poolId: pool.id }"
         />
@@ -285,6 +300,18 @@ const totals = computed(() => {
       @drives="dialog = { kind: 'drives', poolId: dialogPool.id }"
     />
     <RenamePoolDialog v-else-if="dialog.kind === 'rename'" :pool="dialogPool" @close="dialog = null" @done="subDone" />
+    <AppsPoolDialog v-else-if="dialog.kind === 'apps'" :pool="dialogPool.name" @close="dialog = null" @done="subDone" />
+    <ConfirmDialog
+      v-else-if="dialog.kind === 'oldAppData' && dialogPool.oldAppData"
+      :title="`Remove old app data from ${dialogPool.displayName}?`"
+      :message="`This permanently deletes the copy of your apps TrueNAS left on ${dialogPool.displayName} when they moved to ${dialogPool.oldAppData.movedTo} (${formatBytes(dialogPool.oldAppData.usedBytes)}). Your apps on ${dialogPool.oldAppData.movedTo} and your folders aren’t touched.`"
+      action-label="Remove"
+      danger
+      :busy="oldAppDataRunner.running.value"
+      :error="oldAppDataRunner.error.value"
+      @confirm="oldAppDataRunner.start(api.del<TaskStarted>(`/storage/pools/${dialogPool.id}/old-app-data`))"
+      @close="dialog = null"
+    />
     <ConfirmDialog
       v-else-if="dialog.kind === 'delete'"
       :title="`Delete ${dialogPool.displayName}?`"
@@ -297,7 +324,9 @@ const totals = computed(() => {
       @confirm="deletePool(dialogPool)"
       @close="dialog = null"
     >
-      <p v-if="dialogPool.isAppsPool" class="callout warn">Your apps run from this pool. Remove them first, or they will stop working.</p>
+      <p v-if="dialogPool.isAppsPool" class="callout warn">
+        Your apps run from this pool. Move them first (<strong>Use for apps</strong> on another pool) or uninstall them, or they stop working.
+      </p>
     </ConfirmDialog>
   </template>
 </template>

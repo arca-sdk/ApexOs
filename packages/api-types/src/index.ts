@@ -229,6 +229,8 @@ export interface Pool {
   errors: { read: number; write: number; checksum: number };
   /** Damaged-file summary; only present for pools whose state suggests damage (see "Pool data errors"). */
   dataErrors?: PoolDataErrorSummary;
+  /** App data TrueNAS left here when apps moved to `movedTo` (display name); ApexOs removes it after `removeAfter`. Only in GET /api/storage. */
+  oldAppData?: { usedBytes: number; movedTo: string; removeAfter: string };
 }
 
 export interface ImportablePool {
@@ -263,6 +265,7 @@ export interface NewPoolSpec {
 /** POST /api/storage/pools/:id/replace  { oldDrive, newDrive, acknowledgeRisk } → TaskStarted */
 /** POST /api/storage/pools/:id/spares  { drive } → TaskStarted */
 /** POST /api/storage/import  { guid } → TaskStarted */
+/** DELETE /api/storage/pools/:id/old-app-data → TaskStarted (removes `Pool.oldAppData` now) */
 
 export type PlanPriority = 'space' | 'balanced' | 'protection';
 
@@ -332,6 +335,8 @@ export interface SetupRequest {
   /** GUIDs of foreign pools to import. */
   importPools: string[];
   newPools: NewPoolSpec[];
+  /** Pool for apps (kept, imported or new); omitted or not in the plan → ApexOs picks one. */
+  appsPool?: string | null;
   consentErase: boolean;
   consentKeep: boolean;
 }
@@ -346,6 +351,8 @@ export interface SetupReview {
   untouchedPools: string[];
   newPools: (NewPoolSpec & { usableBytes: number; faultTolerance: number })[];
   appsPool: string | null;
+  /** Pools the user may pick for apps. Empty when apps already run on a kept pool (they stay there). */
+  appsPoolOptions: string[];
   needsEraseConsent: boolean;
   needsKeepConsent: boolean;
 }
@@ -548,6 +555,28 @@ export interface AppsResponse {
 /** POST /api/apps/:name/start | stop | upgrade → TaskStarted */
 /** POST /api/apps/upgrade-all → TaskStarted */
 /** DELETE /api/apps/:name  { removeData } → TaskStarted */
+
+/** GET /api/apps/pool?pool=<name> → what running apps from that pool involves. */
+export interface AppsPoolPreview {
+  /** Pool apps would run from. */
+  pool: string;
+  /** Pool apps run from now (null when they have none). */
+  currentPool: string | null;
+  /** The current apps pool is offline: its apps can't be moved and stay there. */
+  currentPoolOffline: boolean;
+  /** Installed apps that move along (titles). Running ones start again on the new pool. */
+  moving: string[];
+  /** How much app data is copied. */
+  copyBytes: number;
+  /** The pool still holds app data from when apps last ran there. */
+  oldAppData: boolean;
+  /** Moving apps there erases that old app data first, so `eraseOldAppData` must be sent. */
+  needsEraseConsent: boolean;
+  /** Why apps can't use this pool right now (null when they can). */
+  problem: string | null;
+}
+
+/** PUT /api/apps/pool  { pool, eraseOldAppData? } → TaskStarted */
 
 // ---------------------------------------------------------------------------
 // Dashboard, metrics and notifications

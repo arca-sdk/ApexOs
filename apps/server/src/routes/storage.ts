@@ -4,6 +4,7 @@ import type { Drive, StorageOverview } from '@apexos/api-types';
 import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import { estimateLayout, planPools } from '../lib/layout.ts';
+import { adoptPoolForApps, startOldAppDataRemoval, withOldAppData } from '../services/apps-pool.ts';
 import { withDataErrors } from '../services/pool-errors.ts';
 import { importablePools, invalidateImportable } from '../services/setup.ts';
 import {
@@ -31,7 +32,7 @@ function unassignedDrive(overview: StorageOverview, identifier: string): Drive {
 }
 
 export async function storageRoutes(app: FastifyInstance, ctx: AppContext): Promise<void> {
-  app.get('/api/storage', async () => withDataErrors(ctx, await getStorage(ctx)));
+  app.get('/api/storage', async () => withOldAppData(ctx, await withDataErrors(ctx, await getStorage(ctx))));
 
   app.get('/api/storage/importable', async (req) => {
     const { fresh } = z.object({ fresh: z.string().optional() }).parse(req.query);
@@ -61,6 +62,9 @@ export async function storageRoutes(app: FastifyInstance, ctx: AppContext): Prom
       await createPool(ctx, spec, (p, m) => t.progress(p, m));
       invalidateImportable(); // reused drives may have held an exported pool
       ctx.bus.changed('storage');
+      // Apps without a pool (theirs was deleted) get this one, so "create a pool" is all it takes.
+      t.progress(95, 'Checking whether apps need a pool');
+      if (await adoptPoolForApps(ctx, spec.name)) ctx.bus.changed('storage');
     });
     return { task };
   });
@@ -84,7 +88,7 @@ export async function storageRoutes(app: FastifyInstance, ctx: AppContext): Prom
       throw new UserError('Type the pool name exactly to confirm.', 400, 'VALIDATION', { confirmName: 'Does not match' });
     }
     if (pool.isAppsPool && Object.keys(ctx.store.get().apps).length) {
-      throw new UserError('Your apps run from this pool. Uninstall them first.', 409, 'IN_USE');
+      throw new UserError('Your apps run from this pool. Move them to another pool (Use for apps on that pool) or uninstall them first.', 409, 'IN_USE');
     }
     const task = ctx.tasks.start({ type: 'pool-delete', title: `Erasing pool ${pool.displayName}`, ref: pool.displayName }, async () => {
       await deletePool(ctx, pool);
@@ -93,6 +97,11 @@ export async function storageRoutes(app: FastifyInstance, ctx: AppContext): Prom
       ctx.bus.changed('folders');
     });
     return { task };
+  });
+
+  app.delete('/api/storage/pools/:id/old-app-data', async (req) => {
+    const { id } = idParam.parse(req.params);
+    return { task: await startOldAppDataRemoval(ctx, findPool(await getStorage(ctx), id)) };
   });
 
   app.post('/api/storage/pools/:id/scrub', async (req) => {

@@ -2,7 +2,7 @@ import { syncAppAlerts } from '../alerts.ts';
 import type { Mock } from '../context.ts';
 import { callError, queryFilter, validationError, validationErrors, type JobControl } from '../rpc.ts';
 import { CATALOG, catalogApp, type AppState, type CatalogApp } from '../state.ts';
-import { addDataset, datasetAvailable, getDataset, pathKind, removeDatasetTree, renderDataset } from '../storage.ts';
+import { addDataset, datasetAvailable, descendants, getDataset, pathKind, removeDatasetTree, renderDataset } from '../storage.ts';
 import { $date, argObj, compareVersions, deepMerge, isObj, MiB, nameArg, randomHex, type Obj } from '../util.ts';
 import { setServiceState } from './services.ts';
 
@@ -489,6 +489,17 @@ export function createIxAppsDatasets(mock: Mock, pool: string, emit = true): voi
   }
 }
 
+/** Copies `<from>/ix-apps` with everything below it to `<to>/ix-apps` (TrueNAS uses a local one-time replication). */
+function replicateIxApps(mock: Mock, from: string, to: string): void {
+  const base = getDataset(mock.state, `${from}/ix-apps`);
+  if (!base) return;
+  for (const ds of [base, ...descendants(mock.state, base.id)]) {
+    const id = `${to}${ds.id.slice(from.length)}`;
+    if (getDataset(mock.state, id)) continue;
+    addDataset(mock, { id, share_type: ds.share_type, usedBytes: ds.usedBytes, props: { ...ds.props }, user_properties: { ...ds.user_properties } });
+  }
+}
+
 async function setupDockerPool(mock: Mock, pool: string, job: JobControl): Promise<void> {
   createIxAppsDatasets(mock, pool);
   job.progress(50, 'Starting docker');
@@ -529,8 +540,19 @@ export function registerApps(mock: Mock): void {
     if ('pool' in data && data.pool !== null) {
       if (typeof data.pool !== 'string' || !state.pools.some((x) => x.name === data.pool)) errors.push(['docker_update.pool', 'Pool not found.']);
     }
-    if (data.migrate_applications === true && (!d.pool || data.pool === d.pool || !data.pool)) {
-      errors.push(['docker_update.migrate_applications', 'Migration is only possible when changing from one pool to another.']);
+    const migrate = data.migrate_applications === true;
+    if (migrate) {
+      // Same checks, in the same order, as TrueNAS's docker.update validation.
+      const attr = 'docker_update.migrate_applications';
+      const target = 'pool' in data ? data.pool : d.pool;
+      if (!target || target === d.pool) errors.push([attr, 'Migration of applications dataset only happens when a new pool is configured.']);
+      else if (!d.pool) errors.push([attr, 'A pool must have been configured previously for ix-apps dataset migration.']);
+      else {
+        const from = `${d.pool}/ix-apps`;
+        const to = `${String(target)}/ix-apps`;
+        if (getDataset(state, to)) errors.push([attr, `Migration of '${from}' to '${to}' not possible as ${to} already exists.`]);
+        else if (!getDataset(state, from)) errors.push([attr, `'${from}' does not exist, migration not possible.`]);
+      }
     }
     if (data.nvidia === true) errors.push(['docker_update.nvidia', 'No NVIDIA GPU is present on this system.']);
     if (errors.length) throw validationErrors(errors);
@@ -540,26 +562,62 @@ export function registerApps(mock: Mock): void {
     if (!('pool' in data) || data.pool === d.pool) return dockerConfig();
 
     const oldVisible = visibleApps(mock);
-    if (data.pool === null) {
-      job.progress(30, 'Stopping docker');
+    const newPool = data.pool as string | null;
+    const oldPool = d.pool;
+
+    if (migrate && oldPool && newPool) {
+      // docker.migrate_ix_apps_dataset: back up, stop docker, replicate <old>/ix-apps to the new pool, restore
+      // there and redeploy the apps that were running. The old copy stays on the old pool.
+      d.status = 'MIGRATING';
+      emitDocker();
+      job.progress(30, 'Creating docker backup');
+      await job.sleep();
+      job.progress(35, 'Stopping docker service');
+      for (const a of oldVisible) mock.emit('app.query', 'removed', a.name);
+      setServiceState(mock, 'docker', 'STOPPED', false);
+      await job.sleep();
+      job.progress(40, `Replicating datasets from '${oldPool}' to '${newPool}' pool`);
+      replicateIxApps(mock, oldPool, newPool);
+      await job.sleep(2);
+      d.pool = newPool;
+      job.progress(70, `Restoring docker apps in '${newPool}' pool`);
+      // The new pool gets its own copy of each app; the old copy stays in the old ix-apps, stopped, and comes
+      // back if that pool is chosen again without migrating.
+      for (const a of oldVisible) {
+        state.apps.push({ ...structuredClone(a), pool: newPool, state: a.state === 'RUNNING' ? 'RUNNING' : 'STOPPED' });
+        a.state = 'STOPPED';
+      }
+      await job.sleep();
+      d.status = 'RUNNING';
+      d.description = '';
+      emitDocker();
+      setServiceState(mock, 'docker', 'RUNNING', true);
+      for (const a of visibleApps(mock)) emitApp(mock, a, 'added');
+      syncAppAlerts(mock);
+      job.progress(100, 'Migration completed successfully');
+      return dockerConfig();
+    }
+
+    // Any other pool change stops every app first; they stay in <old>/ix-apps and come back (stopped)
+    // if that pool is chosen again.
+    if (oldPool) {
+      job.progress(15, 'Stopping Apps');
+      for (const a of oldVisible) {
+        a.state = 'STOPPED';
+        mock.emit('app.query', 'removed', a.name);
+      }
+      job.progress(20, 'Stopping Docker service');
+    }
+    if (newPool === null) {
       d.status = 'STOPPING';
       emitDocker();
       await job.sleep();
-      for (const a of oldVisible) mock.emit('app.query', 'removed', a.name);
       d.pool = null;
       d.status = 'UNCONFIGURED';
       emitDocker();
       setServiceState(mock, 'docker', 'STOPPED', false);
       syncAppAlerts(mock);
       return dockerConfig();
-    }
-    const newPool = data.pool as string;
-    const oldPool = d.pool;
-    if (oldPool) for (const a of oldVisible) mock.emit('app.query', 'removed', a.name);
-    if (data.migrate_applications === true && oldPool) {
-      job.progress(10, 'Migrating applications');
-      for (const a of state.apps) if (a.pool === oldPool) a.pool = newPool;
-      await job.sleep(2);
     }
     d.pool = newPool;
     d.status = 'INITIALIZING';

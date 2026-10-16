@@ -64,6 +64,8 @@ export function createWizard() {
     planLoading: false,
     planError: null as string | null,
     newPools: [] as PlannedNewPool[],
+    /** Pool the user picked for apps on the review screen (null: ApexOs picks one). */
+    appsPool: null as string | null,
     review: null as SetupReview | null,
     reviewSignature: null as string | null,
     reviewLoading: false,
@@ -175,6 +177,7 @@ export function createWizard() {
     if (mode === state.mode) return;
     state.mode = mode;
     state.newPools = [];
+    state.appsPool = null;
     state.planSignature = null;
     state.planUnassigned = {};
     state.planError = null;
@@ -252,6 +255,7 @@ export function createWizard() {
       keepPools: keptNames.value,
       importPools: importing.value.map((p) => p.guid),
       newPools: state.newPools.map(({ name, layout, drives: d }) => ({ name, layout, drives: [...d] })),
+      appsPool: state.appsPool,
       consentErase: withConsent && state.consentErase,
       consentKeep: withConsent && state.consentKeep,
     };

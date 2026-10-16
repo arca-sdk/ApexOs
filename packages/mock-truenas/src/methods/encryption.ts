@@ -22,7 +22,7 @@ import { callError, validationErrors } from '../rpc.ts';
 import type { DatasetEncryptionState, DatasetState } from '../state.ts';
 import { descendants, getDataset, parentId, renderDataset } from '../storage.ts';
 import { argObj, isObj, type Obj } from '../util.ts';
-import { renderApp } from './apps.ts';
+import { renderApp, visibleApps } from './apps.ts';
 import { hostPaths } from './datasets.ts';
 import { renderShare } from './smb.ts';
 
@@ -172,7 +172,7 @@ export function lockForExport(datasets: DatasetState[]): void {
 /** Running apps with a host path at or below `path` (the apps attachment delegate). */
 function appsUsing(mock: Mock, path: string): string[] {
   const inside = (p: string) => p === path || p.startsWith(`${path}/`);
-  return mock.state.apps.filter((a) => a.state !== 'STOPPED' && hostPaths(a.config).some(inside)).map((a) => a.name);
+  return visibleApps(mock).filter((a) => a.state !== 'STOPPED' && hostPaths(a.config).some(inside)).map((a) => a.name);
 }
 
 interface UnlockRequest {
@@ -219,7 +219,7 @@ export function registerEncryption(mock: Mock): void {
     // Attachment delegates stop first: SMB shares go away (smb.conf `available = no`), apps are stopped.
     job.progress(20, 'Stopping services that use the dataset');
     for (const name of appsUsing(mock, `/mnt/${id}`)) {
-      const app = mock.state.apps.find((a) => a.name === name)!;
+      const app = visibleApps(mock).find((a) => a.name === name)!;
       app.state = 'STOPPED';
       mock.emit('app.query', 'changed', app.name, renderApp(mock, app));
     }

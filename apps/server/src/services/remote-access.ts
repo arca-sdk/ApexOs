@@ -20,6 +20,7 @@ import type { RemoteAccessState } from '../lib/store.ts';
 import type { Task, TaskContext } from '../lib/tasks.ts';
 import type { TnApp } from '../truenas/types.ts';
 import { appState, createCatalogApp, deleteApp, getEngine, uniqueAppName } from './apps.ts';
+import { assertAppsNotMoving } from './apps-pool.ts';
 import { lanIp } from './system.ts';
 import { getAccountSecurity } from './two-factor.ts';
 
@@ -161,6 +162,7 @@ function startExclusive(ctx: AppContext, opts: { type: string; title: string; re
   if (ctx.tasks.findRunning('remote-enable') || ctx.tasks.findRunning('remote-disable')) {
     throw new UserError('Remote access is already being changed. Wait for that to finish.', 409, 'BUSY');
   }
+  assertAppsNotMoving(ctx);
   return ctx.tasks.start(opts, fn);
 }
 

@@ -212,6 +212,16 @@ export interface ApexOsState {
   /** Recovery-file tracking and "turn on encryption" runs (never passphrases). */
   encryption?: StoredEncryption;
   backups: BackupsState;
+  /** Pool name → the app data (`<pool>/ix-apps`) TrueNAS left there when ApexOs moved apps away. */
+  oldAppData?: Record<string, OldAppDataRecord>;
+}
+
+export interface OldAppDataRecord {
+  /** Pool the apps moved to. */
+  movedTo: string;
+  movedAt: string;
+  /** When ApexOs removes it on its own. */
+  removeAfter: string;
 }
 
 function defaultState(): ApexOsState {

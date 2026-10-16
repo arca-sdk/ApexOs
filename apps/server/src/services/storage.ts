@@ -342,6 +342,7 @@ export async function deletePool(ctx: AppContext, pool: Pool): Promise<void> {
   await client.job('pool.export', [pool.id, { cascade: true, restart_services: true, destroy: true }]);
   await ctx.store.update((s) => {
     delete s.poolNames[pool.name];
+    if (s.oldAppData) delete s.oldAppData[pool.name];
     for (const [id, path] of Object.entries(s.preferences.locations)) {
       if (path && (path === pool.path || path.startsWith(`${pool.path}/`))) delete s.preferences.locations[id as keyof typeof s.preferences.locations];
     }
