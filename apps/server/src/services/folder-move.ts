@@ -41,6 +41,14 @@ import { getStorage } from './storage.ts';
 const TEMP_PREFIX = '.apexos-move-';
 const OLD_PREFIX = '.apexos-moved-';
 const SNAPSHOT_PREFIX = 'apexos-move-';
+
+/**
+ * The move's own snapshot names (`apexos-move-<id>-1`, `-2`): a later move of the same folder never reuses
+ * snapshots an earlier one failed to clean up, and cleanup only deletes this move's.
+ */
+function snapshotName(r: Pick<FolderMoveRecord, 'id'>, n: 1 | 2): string {
+  return `${SNAPSHOT_PREFIX}${r.id.slice(0, 8)}-${n}`;
+}
 /** How long the old folder is kept on the old pool. */
 export const OLD_COPY_DAYS = 7;
 const DAY = 24 * 3600_000;
@@ -386,10 +394,10 @@ async function runMove(ctx: AppContext, id: string, t: TaskContext): Promise<voi
     });
 
     await step('Copying files', async (progress) => {
-      await ensureSnapshot(client, r.source, `${SNAPSHOT_PREFIX}1`);
+      await ensureSnapshot(client, r.source, snapshotName(r, 1));
       if (await getDataset(client, r.temp)) {
         if (!r.tempCreated) throw new UserError(`A dataset called “${r.temp}” is in the way. Remove it in TrueNAS, then try again.`, 409, 'NAME_TAKEN');
-        if ((await snapshotNames(client, r.temp)).includes(`${SNAPSHOT_PREFIX}1`)) return;
+        if ((await snapshotNames(client, r.temp)).includes(snapshotName(r, 1))) return;
         // A copy this move started but that never got its first snapshot is a half-received leftover: start again.
         await client.call('pool.dataset.delete', [r.temp, { recursive: true }]);
       }
@@ -399,12 +407,10 @@ async function runMove(ctx: AppContext, id: string, t: TaskContext): Promise<voi
 
     await step('Stopping apps and sharing', async () => {
       const running = (await appsUsing(client, pathOf(r.source))).filter((a) => a.state === 'RUNNING' || a.state === 'DEPLOYING');
-      const stopped = [...r.stoppedApps];
-      for (const app of running) {
-        await client.job('app.stop', [app.name]);
-        stopped.push(app.name);
-        r = await patch(ctx, id, { stoppedApps: stopped });
-      }
+      // Written down before stopping, so a restart in the middle still knows which apps to start again
+      // (starting is skipped for apps that are still running).
+      r = await patch(ctx, id, { stoppedApps: [...new Set([...r.stoppedApps, ...running.map((a) => a.name)])] });
+      for (const app of running) await client.job('app.stop', [app.name]);
       if (!r.share) {
         const [share] = await client.call<TnSmbShare[]>('sharing.smb.query', [[['path', '=', pathOf(r.source)]]]);
         if (share) {
@@ -415,8 +421,8 @@ async function runMove(ctx: AppContext, id: string, t: TaskContext): Promise<voi
     });
 
     await step('Copying the latest changes', async (progress) => {
-      await ensureSnapshot(client, r.source, `${SNAPSHOT_PREFIX}2`);
-      if ((await snapshotNames(client, r.temp)).includes(`${SNAPSHOT_PREFIX}2`)) return;
+      await ensureSnapshot(client, r.source, snapshotName(r, 2));
+      if ((await snapshotNames(client, r.temp)).includes(snapshotName(r, 2))) return;
       await client.job('replication.run_onetime', [replicationArgs(r, false)], report(progress));
     });
 
@@ -531,7 +537,7 @@ async function finishMove(ctx: AppContext, id: string, t?: TaskContext): Promise
 
   await step('Cleaning up', async () => {
     for (const ds of [r.target, r.original]) {
-      for (const n of [1, 2]) await dropSnapshot(client, ds, `${SNAPSHOT_PREFIX}${n}`).catch(() => undefined);
+      for (const n of [1, 2] as const) await dropSnapshot(client, ds, snapshotName(r, n)).catch(() => undefined);
     }
   });
 
@@ -568,11 +574,16 @@ async function undoBeforeSwitch(ctx: AppContext, r: FolderMoveRecord): Promise<s
     });
   }
   if (r.share?.wasEnabled) await attempt('sharing it again', () => client.call('sharing.smb.update', [r.share!.id, { enabled: true }]));
-  for (const name of r.stoppedApps) await attempt(`starting ${name}`, () => client.job('app.start', [name]));
+  const states = new Map((await client.call<TnApp[]>('app.query').catch(() => [] as TnApp[])).map((a) => [a.name, a.state]));
+  for (const name of r.stoppedApps) {
+    const state = states.get(name);
+    if (state === 'RUNNING' || state === 'DEPLOYING') continue; // never got stopped
+    await attempt(`starting ${name}`, () => client.job('app.start', [name]));
+  }
   await attempt('removing the copy', async () => {
     if (r.tempCreated && (await getDataset(client, r.temp))) await client.call('pool.dataset.delete', [r.temp, { recursive: true }]);
   });
-  for (const n of [1, 2]) await attempt('removing snapshots', () => dropSnapshot(client, r.source, `${SNAPSHOT_PREFIX}${n}`));
+  for (const n of [1, 2] as const) await attempt('removing snapshots', () => dropSnapshot(client, r.source, snapshotName(r, n)));
   return problems.length ? `ApexOs couldn’t finish cleaning up (${problems.join('; ')}); it tries again later.` : null;
 }
 

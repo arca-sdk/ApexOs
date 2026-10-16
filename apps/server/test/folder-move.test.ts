@@ -154,7 +154,7 @@ describe('moving a location to another pool', () => {
     const [docs] = await tn<{ id: number }[]>('sharing.smb.query', [[['name', '=', 'Documents']]]);
     await tn('sharing.smb.update', [docs!.id, { enabled: false }]);
     await ctx.truenas.client().job('app.stop', ['jellyfin']);
-    await tn('pool.snapshot.create', [{ dataset: 'HDDs/Documents', name: 'apexos-move-1', recursive: true }]);
+    await tn('pool.snapshot.create', [{ dataset: 'HDDs/Documents', name: 'apexos-move-interrup-1', recursive: true }]);
     await ctx.truenas.client().job('replication.run_onetime', [
       { direction: 'PUSH', transport: 'LOCAL', source_datasets: ['HDDs/Documents'], target_dataset: 'SSDs/.apexos-move-Documents', recursive: true, properties: true, name_regex: '.*', retention_policy: 'NONE', readonly: 'IGNORE', only_from_scratch: true },
     ]);
@@ -215,7 +215,7 @@ describe('moving a location to another pool', () => {
     // As if ApexOs stopped right after both renames, before writing either of them down.
     const [docs] = await tn<{ id: number }[]>('sharing.smb.query', [[['name', '=', 'Documents']]]);
     await tn('sharing.smb.update', [docs!.id, { enabled: false }]);
-    await tn('pool.snapshot.create', [{ dataset: 'HDDs/Documents', name: 'apexos-move-1', recursive: true }]);
+    await tn('pool.snapshot.create', [{ dataset: 'HDDs/Documents', name: 'apexos-move-crashed-1', recursive: true }]);
     await ctx.truenas.client().job('replication.run_onetime', [
       { direction: 'PUSH', transport: 'LOCAL', source_datasets: ['HDDs/Documents'], target_dataset: 'SSDs/.apexos-move-Documents', recursive: true, properties: true, name_regex: '.*', retention_policy: 'NONE', readonly: 'IGNORE', only_from_scratch: true },
     ]);
@@ -251,5 +251,7 @@ describe('moving a location to another pool', () => {
     expect(ctx.store.get().folderMoves).toEqual([expect.objectContaining({ id: 'crashed', status: 'done', switched: true, renamedOriginal: true })]);
     expect(ctx.store.get().preferences.locations).toMatchObject({ Documents: '/mnt/SSDs/Documents' });
     expect(await share('Documents')).toMatchObject({ path: '/mnt/SSDs/Documents', enabled: true });
+    // Only this move's snapshots go; nothing named for another move is touched.
+    expect(await tn('pool.snapshot.query', [[['snapshot_name', '^', 'apexos-move-crashed-']]])).toEqual([]);
   });
 });
