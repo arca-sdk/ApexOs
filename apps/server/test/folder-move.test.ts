@@ -5,7 +5,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { FolderMove, FoldersResponse, LocationMoveCheck, LocationPreferenceId, Task } from '@apexos/api-types';
 import { startMockTrueNas, type MockTrueNas } from '@apexos/mock-truenas';
@@ -254,6 +254,30 @@ describe('moving a location to another pool', () => {
     expect(await share('Documents')).toMatchObject({ path: '/mnt/SSDs/Documents', enabled: true });
     // Only this move's snapshots go; nothing named for another move is touched.
     expect(await tn('pool.snapshot.query', [[['snapshot_name', '^', 'apexos-move-crashed-']]])).toEqual([]);
+  });
+
+  it('finishes the move when the share can’t follow, and says what to fix', async () => {
+    const client = ctx.truenas.client();
+    const original = client.call.bind(client);
+    // TrueNAS refuses to point the Photos share at its new path; pausing and other calls still work.
+    const spy = vi
+      .spyOn(client, 'call')
+      .mockImplementation(((method: string, params?: unknown[]) =>
+        method === 'sharing.smb.update' && (params?.[1] as { path?: string } | undefined)?.path
+          ? Promise.reject(new Error('share is busy'))
+          : original(method, params)) as typeof client.call);
+    try {
+      await finished(await ok<{ task: Task }>('POST', '/api/locations/Photos/move', { pool: 'HDDs' }));
+    } finally {
+      spy.mockRestore();
+    }
+    const move = ctx.store.get().folderMoves!.find((m) => m.target === 'HDDs/Photos')!;
+    expect(move.status).toBe('done');
+    expect(move.warnings).toEqual(['The network share of Photos couldn’t follow it (share is busy). In TrueNAS, point it at /mnt/HDDs/Photos and turn it on.']);
+    expect(ctx.store.get().preferences.locations).toMatchObject({ Photos: '/mnt/HDDs/Photos' });
+    const app = await jellyfin();
+    expect(app.state).toBe('RUNNING');
+    expect(app.config.storage.additional_storage.map((e: any) => e.host_path_config.path)).toContain('/mnt/HDDs/Photos/2025');
   });
 
   it('checks a copy only up to its last snapshot, so scheduled snapshots during the move don’t fail it', async () => {

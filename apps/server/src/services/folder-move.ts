@@ -492,14 +492,14 @@ async function runMove(ctx: AppContext, id: string, t: TaskContext): Promise<voi
 }
 
 /**
- * After the switch-over: the share and ApexOs's own records point at the new path. Idempotent (only the old
- * path is replaced), so an interrupted move can run it again.
+ * After the switch-over: ApexOs's own records and the share point at the new path. Idempotent (only the old
+ * path is replaced), so an interrupted move can run it again. A share that can't follow becomes a warning: the
+ * folder is already on its new pool, and the apps still have to be updated and started.
  */
 async function followNewPath(ctx: AppContext, r: FolderMoveRecord): Promise<void> {
   const client = ctx.truenas.client();
   const from = pathOf(r.source);
   const to = pathOf(r.target);
-  if (r.share) await client.call('sharing.smb.update', [r.share.id, { path: to, enabled: r.share.wasEnabled }]);
   await ctx.store.update((s) => {
     for (const [key, path] of Object.entries(s.preferences.locations)) {
       if (path && underPath(path, from)) s.preferences.locations[key as keyof typeof s.preferences.locations] = `${to}${path.slice(from.length)}`;
@@ -511,6 +511,14 @@ async function followNewPath(ctx: AppContext, r: FolderMoveRecord): Promise<void
     }
   });
   ctx.bus.changed('locations');
+  const share = r.share;
+  if (share) {
+    await client.call('sharing.smb.update', [share.id, { path: to, enabled: share.wasEnabled }]).catch(async (err: Error) => {
+      const warning = `The network share of ${r.name} couldn’t follow it (${errorMessage(err)}). In TrueNAS, point it at ${to}${share.wasEnabled ? ' and turn it on' : ''}.`;
+      const { warnings } = recordById(ctx, r.id);
+      if (!warnings.includes(warning)) await patch(ctx, r.id, { warnings: [...warnings, warning] });
+    });
+  }
 }
 
 /** Updates the apps, starts the ones ApexOs stopped and removes the move's snapshots. Problems become warnings. */
