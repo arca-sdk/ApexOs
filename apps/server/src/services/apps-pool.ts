@@ -229,15 +229,9 @@ export async function oldAppDataHousekeeping(ctx: AppContext): Promise<Task | nu
   const pools = (await getStorage(ctx)).pools;
   for (const [name] of due) {
     const pool = pools.find((p) => p.name === name);
-    if (!pool) {
-      // The pool is gone, and its old app data with it.
-      await ctx.store.update((s) => {
-        if (s.oldAppData) delete s.oldAppData[name];
-      });
-      continue;
-    }
-    // An offline pool waits for the next hour instead of failing (and notifying) every hour.
-    if (pool.health === 'offline') continue;
+    // A missing pool may only be exported (its data is still on the drives), and an offline one can come back:
+    // both keep their record and wait. Deleting a pool through ApexOs clears its record.
+    if (!pool || pool.health === 'offline') continue;
     if (ctx.tasks.findRunning('apps-pool') || ctx.tasks.findRunning('apps-old-data')) return null;
     return startRemovalTask(ctx, pool);
   }
