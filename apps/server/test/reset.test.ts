@@ -14,6 +14,7 @@ import { HostCommands } from '../src/lib/host.ts';
 import { StateStore } from '../src/lib/store.ts';
 import { TaskManager } from '../src/lib/tasks.ts';
 import { TrueNasManager } from '../src/lib/truenas.ts';
+import { keepEncryption } from '../src/services/reset.ts';
 
 let mock: MockTrueNas;
 let app: FastifyInstance;
@@ -115,8 +116,43 @@ describe('erasing everything and starting over', () => {
     expect(await tn('pool.query')).toHaveLength(2);
   });
 
+  it('won’t start when it can’t tell whether ApexOs runs as one of the apps', async () => {
+    const client = ctx.truenas.client();
+    const original = client.call.bind(client);
+    client.call = ((method: string, params?: unknown[]) => (method === 'app.query' ? Promise.reject(new Error('apps service unavailable')) : original(method, params))) as typeof client.call;
+    try {
+      const preview = await ok<ResetPreview>('GET', '/api/system/reset');
+      expect(preview.blockers).toEqual([expect.objectContaining({ code: 'CHECK_FAILED' })]);
+      const refused = await call<ErrorBody>('POST', '/api/system/reset', { password: PASSWORD, confirm: 'homeserver' });
+      expect([refused.status, refused.body.error.code]).toEqual([409, 'CANNOT_RESET']);
+    } finally {
+      client.call = original;
+    }
+  });
+
+  it('keeps encryption records of pools that couldn’t be erased', () => {
+    const conversion = { dataset: 'Kept/Docs' } as never;
+    const kept = (d: string) => d.startsWith('Kept/');
+    expect(
+      keepEncryption(
+        {
+          recovery: { downloadedAt: 'x', datasets: ['Gone/A', 'Kept/B'] },
+          pendingRecovery: ['Gone/A', 'Kept/Docs'],
+          stoppedApps: { 'Gone/A': ['jellyfin'] },
+          conversions: { 'Gone/A': conversion, 'Kept/Docs': conversion },
+        },
+        kept,
+      ),
+    ).toEqual({ recovery: { downloadedAt: 'x', datasets: ['Kept/B'] }, pendingRecovery: ['Kept/Docs'], conversions: { 'Kept/Docs': conversion } });
+    expect(keepEncryption({ pendingRecovery: ['Gone/A'] }, kept)).toBeUndefined();
+  });
+
   it('erases pools, apps, users and the forwarding setting, then runs setup again', async () => {
-    const task = await finished(await ok<{ task: Task }>('POST', '/api/system/reset', { password: PASSWORD, confirm: 'homeserver' }));
+    const started = await ok<{ task: Task }>('POST', '/api/system/reset', { password: PASSWORD, confirm: 'homeserver' });
+    // Nothing else may change the server meanwhile.
+    const blocked = await call<ErrorBody>('POST', '/api/folders', { name: 'Late' });
+    expect([blocked.status, blocked.body.error.code]).toEqual([409, 'BUSY']);
+    const task = await finished(started);
     expect(task.steps.map((s) => [s.name, s.status])).toEqual([
       ['Removing backups', 'success'],
       ['Removing apps', 'success'],

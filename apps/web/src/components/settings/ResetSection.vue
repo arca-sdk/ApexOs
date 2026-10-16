@@ -4,17 +4,15 @@
  * when two-factor sign-in is on), follows the run and then sends the user to setup.
  */
 import { computed, ref } from 'vue';
-import { useRouter } from 'vue-router';
 import { Eraser, TriangleAlert } from 'lucide-vue-next';
 import type { ResetPreview, ResetRequest, TaskStarted } from '@apexos/api-types';
 import Modal from '../Modal.vue';
 import CodeInput from '../account/CodeInput.vue';
 import TaskItem from '../notifications/TaskItem.vue';
 import { useTaskRunner } from '../storage/taskRunner.ts';
-import { api, refreshStatus } from '../../lib/api.ts';
+import { api } from '../../lib/api.ts';
 import { formatBytes } from '../../lib/format.ts';
 
-const router = useRouter();
 const open = ref(false);
 const preview = ref<ResetPreview | null>(null);
 const loadError = ref<string | null>(null);
@@ -22,10 +20,8 @@ const confirm = ref('');
 const password = ref('');
 const code = ref('');
 const recovery = ref(false);
-const runner = useTaskRunner(async () => {
-  await refreshStatus();
-  await router.replace('/setup');
-});
+// The app sends everyone to setup when the reset finishes (App.vue), even if this dialog was closed.
+const runner = useTaskRunner(() => undefined);
 
 async function start() {
   open.value = true;

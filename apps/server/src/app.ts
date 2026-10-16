@@ -79,6 +79,11 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     if (!req.username && !PUBLIC_ROUTES.has(path)) {
       return reply.status(401).send({ error: { code: 'UNAUTHENTICATED', message: 'Please sign in' } });
     }
+    // While "Start over" erases the server, nothing else may change it (a pool created meanwhile would be
+    // erased or left behind).
+    if (req.method !== 'GET' && req.method !== 'HEAD' && path !== '/api/auth/logout' && ctx.tasks.findRunning('factory-reset')) {
+      return reply.status(409).send({ error: { code: 'BUSY', message: 'Your server is being erased. Wait until that has finished.' } });
+    }
   });
 
   app.get('/api/health', async () => ({ ok: true }));

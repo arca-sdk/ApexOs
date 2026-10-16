@@ -2,8 +2,8 @@
 import { computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppLayout from './components/AppLayout.vue';
-import { session } from './lib/api.ts';
-import { connectEvents, disconnectEvents } from './lib/events.ts';
+import { refreshStatus, session } from './lib/api.ts';
+import { connectEvents, disconnectEvents, live } from './lib/events.ts';
 
 const route = useRoute();
 const router = useRouter();
@@ -20,6 +20,19 @@ watch(
   },
   { immediate: true },
 );
+
+// When "Start over" finishes, setup runs again, wherever the user is (they may have closed its dialog).
+const finishedResets = computed(() =>
+  Object.values(live.tasks)
+    .filter((t) => t.type === 'factory-reset' && t.status === 'success')
+    .map((t) => t.id)
+    .join(','),
+);
+watch(finishedResets, async (ids) => {
+  if (!ids) return;
+  await refreshStatus();
+  if (!session.setupComplete) await router.replace('/setup');
+});
 </script>
 
 <template>
