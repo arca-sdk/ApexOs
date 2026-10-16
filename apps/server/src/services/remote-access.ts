@@ -18,7 +18,8 @@ import type { AppContext } from '../app.ts';
 import { UserError } from '../lib/errors.ts';
 import type { RemoteAccessState } from '../lib/store.ts';
 import type { Task, TaskContext } from '../lib/tasks.ts';
-import type { TnApp } from '../truenas/types.ts';
+import { schemaHas } from '../truenas/helpers.ts';
+import type { TnApp, TnAppDetails } from '../truenas/types.ts';
 import { appState, createCatalogApp, deleteApp, getEngine, uniqueAppName } from './apps.ts';
 import { assertAppsNotMoving } from './apps-pool.ts';
 import { lanIp } from './system.ts';
@@ -38,16 +39,6 @@ interface TnTunable {
   var: string;
   value: string;
   enabled: boolean;
-}
-
-interface SchemaQuestion {
-  variable: string;
-  schema?: { attrs?: SchemaQuestion[] };
-}
-
-interface TnAppDetails {
-  latest_version: string;
-  versions: Record<string, { schema?: { questions?: SchemaQuestion[] } }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,17 +101,6 @@ async function homeNetwork(client: TrueNasClient, ip: string | null): Promise<st
     .flatMap((i) => i.IPV4 ?? [])
     .find((c) => c.split('/')[0] === ip);
   return cidr ? networkOf(cidr) : null;
-}
-
-function schemaHas(questions: SchemaQuestion[], path: string): boolean {
-  let level = questions;
-  const parts = path.split('.');
-  for (const [i, part] of parts.entries()) {
-    const q = level.find((x) => x.variable === part);
-    if (!q) return false;
-    if (i < parts.length - 1) level = q.schema?.attrs ?? [];
-  }
-  return true;
 }
 
 /** Re-reads the app's install schema from the TrueNAS catalog and checks the settings ApexOs fills in still exist. */

@@ -514,6 +514,8 @@ export interface CatalogAppDetail extends CatalogApp {
   requirements: AppRequirementsInfo | null;
   /** Suggested TrueNAS app name (unique on this server). */
   suggestedName: string;
+  /** Graphics cards the app could use; null when the app can't use one. */
+  gpu: AppGpus | null;
 }
 
 /** POST /api/apps/install  InstallRequest → TaskStarted */
@@ -522,6 +524,16 @@ export interface InstallRequest {
   train: string;
   appName?: string;
   answers: Record<string, string | number | boolean>;
+  /** Let the app use the server's graphics cards (only for apps with `CatalogAppDetail.gpu`). */
+  useGpu?: boolean;
+}
+
+/** Graphics cards apps can use (hardware video encoding, photo recognition…). */
+export interface AppGpus {
+  /** Cards apps can use, e.g. "Intel UHD Graphics 630". Intel and AMD cards work as they are. */
+  usable: string[];
+  /** An NVIDIA card is present but unusable: it needs TrueNAS's NVIDIA driver, which ApexOs doesn't install. */
+  nvidiaNeedsDriver: boolean;
 }
 
 export type AppState = 'running' | 'stopped' | 'deploying' | 'crashed' | 'stopping' | 'unknown';
@@ -544,17 +556,21 @@ export interface InstalledApp {
   train: string | null;
   /** Locations the app stores data in. */
   locations: LocationPreferenceId[];
+  /** Whether the app uses the graphics cards; null when the app can't use one. */
+  gpu: { enabled: boolean } | null;
 }
 
-/** GET /api/apps → { apps, engine } */
+/** GET /api/apps → { apps, engine, gpus } */
 export interface AppsResponse {
   apps: InstalledApp[];
   engine: { status: string; pool: string | null; description: string | null };
+  gpus: AppGpus;
 }
 
 /** POST /api/apps/:name/start | stop | upgrade → TaskStarted */
 /** POST /api/apps/upgrade-all → TaskStarted */
 /** DELETE /api/apps/:name  { removeData } → TaskStarted */
+/** POST /api/apps/:name/gpu  { enabled } → TaskStarted (the app restarts) */
 
 /** GET /api/apps/pool?pool=<name> → what running apps from that pool involves. */
 export interface AppsPoolPreview {

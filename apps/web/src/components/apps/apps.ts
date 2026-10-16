@@ -30,6 +30,7 @@ const APP_TASK_LABELS: Record<string, string> = {
   'app-upgrade': 'Updating…',
   'app-uninstall': 'Uninstalling…',
   'app-upgrade-all': 'Updating…',
+  'app-gpu': 'Applying…',
 };
 
 /** The running server task acting on this app, if any (start/stop/update/uninstall, or "update all"). */
@@ -91,6 +92,7 @@ export function useAppActions() {
     upgrade: (name: string) => run(name, () => api.post<TaskStarted>(`${path(name)}/upgrade`)),
     upgradeAll: () => run('*', () => api.post<TaskStarted>('/apps/upgrade-all')),
     uninstall: (name: string, removeData: boolean) => run(name, () => api.del<TaskStarted>(path(name), { removeData })),
+    gpu: (name: string, enabled: boolean) => run(name, () => api.post<TaskStarted>(`${path(name)}/gpu`, { enabled })),
     clearError: (key: string) => delete errors[key],
   };
 }

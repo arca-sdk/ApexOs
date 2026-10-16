@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ExternalLink, Play, Square, Trash2, X } from 'lucide-vue-next';
-import type { InstalledApp } from '@apexos/api-types';
+import type { AppGpus, InstalledApp } from '@apexos/api-types';
 import { metrics } from '../../lib/events.ts';
 import { formatMemory, formatPercent } from '../../lib/format.ts';
 import AppIcon from './AppIcon.vue';
@@ -9,14 +9,16 @@ import AppStateBadge from './AppStateBadge.vue';
 import TierBadge from './TierBadge.vue';
 import { appTask, displayVersion, updateLabel } from './apps.ts';
 
-const props = defineProps<{ app: InstalledApp; error?: string }>();
-const emit = defineEmits<{ start: []; stop: []; update: []; uninstall: []; dismissError: [] }>();
+const props = defineProps<{ app: InstalledApp; gpus?: AppGpus; error?: string }>();
+const emit = defineEmits<{ start: []; stop: []; update: []; uninstall: []; dismissError: []; gpu: [enabled: boolean] }>();
 
 const busy = computed(() => appTask(props.app));
 const usage = computed(() => metrics.value.at(-1)?.apps[props.app.name] ?? null);
 const running = computed(() => props.app.state === 'running');
 const canStop = computed(() => props.app.state === 'running' || props.app.state === 'deploying');
 const showName = computed(() => props.app.name.toLowerCase() !== props.app.title.toLowerCase());
+/** Shown for apps that can use a graphics card, when there is one (or the app still has it turned on). */
+const showGpu = computed(() => Boolean(props.app.gpu && (props.app.gpu.enabled || props.gpus?.usable.length)));
 </script>
 
 <template>
@@ -45,6 +47,20 @@ const showName = computed(() => props.app.name.toLowerCase() !== props.app.title
       <div v-if="running">
         <dt class="muted">Memory</dt>
         <dd>{{ usage ? formatMemory(usage.memoryBytes) : '—' }}</dd>
+      </div>
+      <div v-if="showGpu">
+        <dt class="muted">Graphics card</dt>
+        <dd class="row" style="--gap: 6px">
+          {{ app.gpu!.enabled ? 'In use' : 'Not used' }}
+          <button
+            class="btn ghost small link"
+            :disabled="Boolean(busy)"
+            :aria-label="`${app.gpu!.enabled ? 'Turn off' : 'Turn on'} the graphics card for ${app.title}`"
+            @click="emit('gpu', !app.gpu!.enabled)"
+          >
+            {{ app.gpu!.enabled ? 'Turn off' : 'Turn on' }}
+          </button>
+        </dd>
       </div>
     </dl>
 
@@ -140,6 +156,11 @@ const showName = computed(() => props.app.name.toLowerCase() !== props.app.title
   margin: 0;
   font-weight: 550;
   font-variant-numeric: tabular-nums;
+}
+.facts .link {
+  padding: 0 4px;
+  font-weight: 500;
+  color: var(--accent);
 }
 .update {
   display: flex;

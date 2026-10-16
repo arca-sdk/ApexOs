@@ -189,6 +189,8 @@ export interface TnApp {
   } | null;
   portals: Record<string, string> | null;
   active_workloads?: { used_ports?: { host_ports: { host_port: number }[] }[] };
+  /** The app's values; only with `extra.retrieve_config`. */
+  config?: Record<string, unknown>;
 }
 
 export interface TnCatalogApp {
@@ -223,6 +225,36 @@ export interface TnAlert {
 export interface TnDockerConfig {
   pool: string | null;
   dataset: string | null;
+  /** NVIDIA drivers installed (Apps → Configuration in TrueNAS). */
+  nvidia?: boolean;
+}
+
+/** `app.gpu_choices` entry (keyed by PCI slot). NVIDIA cards only appear once TrueNAS's NVIDIA driver is installed. */
+export interface TnGpuChoice {
+  vendor: string | null;
+  description: string | null;
+  error: string | null;
+  vendor_specific_config: { uuid?: string } | null;
+  pci_slot: string;
+}
+
+/** `resources.gpus` in an app's values (TrueNAS apps library): `use_all_gpus` passes Intel/AMD cards, NVIDIA cards are picked one by one. */
+export interface TnGpuValues {
+  use_all_gpus?: boolean;
+  kfd_device_exists?: boolean;
+  nvidia_gpu_selection?: Record<string, { use_gpu?: boolean; uuid?: string }>;
+}
+
+/** One question of a catalog app's install schema (`questions.yaml`). */
+export interface SchemaQuestion {
+  variable: string;
+  schema?: { attrs?: SchemaQuestion[] };
+}
+
+/** `catalog.get_app_details` */
+export interface TnAppDetails {
+  latest_version: string;
+  versions: Record<string, { schema?: { questions?: SchemaQuestion[] } }>;
 }
 
 export interface TnDockerStatus {

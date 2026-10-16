@@ -21,6 +21,7 @@ const uninstalling = ref<InstalledApp | null>(null);
 const updating = ref<InstalledApp | null>(null);
 const confirmAll = ref(false);
 const choosingPool = ref(false);
+const gpuChange = ref<{ app: InstalledApp; enabled: boolean } | null>(null);
 
 const apps = computed(() => data.value?.apps ?? []);
 const updatable = computed(() => apps.value.filter((a) => a.upgradeAvailable));
@@ -94,6 +95,12 @@ function confirmUpdate() {
   if (app) void actions.upgrade(app.name).then(afterAction);
 }
 
+function confirmGpu() {
+  const change = gpuChange.value;
+  gpuChange.value = null;
+  if (change) void actions.gpu(change.app.name, change.enabled).then(afterAction);
+}
+
 function startUpdateAll() {
   confirmAll.value = false;
   void actions.upgradeAll().then(afterAction);
@@ -130,11 +137,13 @@ function startUpdateAll() {
           v-for="app in apps"
           :key="app.name"
           :app="app"
+          :gpus="data?.gpus"
           :error="actions.errors[app.name]"
           @start="actions.start(app.name).then(afterAction)"
           @stop="actions.stop(app.name).then(afterAction)"
           @update="updating = app"
           @uninstall="uninstalling = app"
+          @gpu="(enabled) => (gpuChange = { app, enabled })"
           @dismiss-error="actions.clearError(app.name)"
         />
       </div>
@@ -151,6 +160,14 @@ function startUpdateAll() {
   </div>
 
   <AppsPoolDialog v-if="choosingPool" @close="choosingPool = false" @done="(choosingPool = false), refresh()" />
+  <ConfirmDialog
+    v-if="gpuChange"
+    :title="`${gpuChange.enabled ? 'Turn on' : 'Turn off'} the graphics card for ${gpuChange.app.title}?`"
+    :message="`${gpuChange.app.state === 'stopped' ? `${gpuChange.app.title} uses the new setting the next time it starts.` : `${gpuChange.app.title} restarts to apply this and is unavailable for a moment.`}${gpuChange.enabled ? ' It can then use the graphics card for faster video conversion and image processing.' : ''}`"
+    :action-label="gpuChange.enabled ? 'Turn on' : 'Turn off'"
+    @close="gpuChange = null"
+    @confirm="confirmGpu"
+  />
   <UninstallDialog v-if="uninstalling" :app="uninstalling" @close="uninstalling = null" @confirm="confirmUninstall" />
 
   <ConfirmDialog
