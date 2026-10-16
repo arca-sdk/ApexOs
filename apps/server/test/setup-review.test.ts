@@ -91,4 +91,21 @@ describe('setup review (start-fresh rules)', () => {
     const r = review({ ...base, newPools: [{ name: 'HDDs', layout: 'MIRROR', drives: ['a', 'b'] }, { name: 'NVMEs', layout: 'MIRROR', drives: ['n1', 'n2'] }] }, rc);
     expect(r.appsPool).toBe('NVMEs');
   });
+
+  it('puts apps where the user chose, among the pools in the plan', () => {
+    const newPools: SetupRequest['newPools'] = [{ name: 'HDDs', layout: 'MIRROR', drives: ['a', 'b'] }, { name: 'NVMEs', layout: 'MIRROR', drives: ['n1', 'n2'] }];
+    const chosen = review({ ...base, keepPools: ['Media'], newPools, appsPool: 'Media' }, rc);
+    expect(chosen).toMatchObject({ appsPool: 'Media', appsPoolOptions: ['HDDs', 'NVMEs', 'Media'] });
+    // A pool that's no longer in the plan falls back to the automatic choice.
+    expect(review({ ...base, newPools, appsPool: 'Media' }, rc).appsPool).toBe('NVMEs');
+  });
+
+  it('keeps apps on a kept pool they already run on', () => {
+    const apps = { ...pool('Apps', [drive('e'), drive('f')]), isAppsPool: true };
+    const r = review({ ...base, keepPools: ['Apps'], newPools: [{ name: 'NVMEs', layout: 'MIRROR', drives: ['n1', 'n2'] }], appsPool: 'NVMEs' }, {
+      ...rc,
+      storage: { ...storage, pools: [...storage.pools, apps] },
+    });
+    expect(r).toMatchObject({ appsPool: 'Apps', appsPoolOptions: [] });
+  });
 });

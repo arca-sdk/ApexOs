@@ -142,10 +142,13 @@ export function review(req: SetupRequest, rc: ReviewContext): SetupReview {
     problems.push('Your server needs at least one storage pool. Keep, import or create one.');
   }
 
-  // Apps go on the existing apps pool if it's kept, else the first new SSD pool, else the first pool available.
+  // Apps stay on the existing apps pool if it's kept. Otherwise they go where the user chose, else on the
+  // first new SSD pool, else on the first pool available.
   const currentAppsPool = kept.find((p) => p.isAppsPool)?.name;
+  const appsPoolOptions = currentAppsPool ? [] : [...newPools.map((p) => p.name), ...kept.map((p) => p.name), ...importNames];
+  const chosenAppsPool = req.appsPool && appsPoolOptions.includes(req.appsPool) ? req.appsPool : undefined;
   const firstPerf = newPools.find((p) => allDrives.find((d) => d.identifier === p.drives[0])?.kind !== 'HDD');
-  const appsPool = currentAppsPool ?? firstPerf?.name ?? newPools[0]?.name ?? kept[0]?.name ?? importNames[0] ?? null;
+  const appsPool = currentAppsPool ?? chosenAppsPool ?? firstPerf?.name ?? newPools[0]?.name ?? kept[0]?.name ?? importNames[0] ?? null;
 
   const needsEraseConsent = newPools.length > 0 || erasePools.length > 0;
   const needsKeepConsent = kept.length > 0 || importNames.length > 0;
@@ -156,6 +159,7 @@ export function review(req: SetupRequest, rc: ReviewContext): SetupReview {
     untouchedPools,
     newPools,
     appsPool,
+    appsPoolOptions,
     needsEraseConsent,
     needsKeepConsent,
   };

@@ -337,7 +337,7 @@ export interface ApiKeyState {
   revoked_reason: string | null;
 }
 
-export type DockerStatus = 'PENDING' | 'RUNNING' | 'STOPPED' | 'INITIALIZING' | 'STOPPING' | 'UNCONFIGURED' | 'FAILED';
+export type DockerStatus = 'PENDING' | 'RUNNING' | 'STOPPED' | 'INITIALIZING' | 'STOPPING' | 'UNCONFIGURED' | 'FAILED' | 'MIGRATING' | 'MIGRATION_FAILED';
 
 export interface DockerState {
   pool: string | null;

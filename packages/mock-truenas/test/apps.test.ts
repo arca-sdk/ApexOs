@@ -167,6 +167,39 @@ describe('apps', () => {
     expect(await client.call('app.rollback_versions', ['jellyfin'])).toEqual([app.version]);
   });
 
+  it('moves apps to another pool, keeping the old copy, and refuses to overwrite one', async () => {
+    const { client } = await setup({ scenario: 'configured' });
+    const attr = 'docker_update.migrate_applications';
+    expect((await failure(client.job('docker.update', [{ pool: 'SSDs', migrate_applications: true }]))).validationErrors[attr]).toMatch(/only happens when a new pool/);
+
+    const progress: string[] = [];
+    const config = await client.job<Any>('docker.update', [{ pool: 'HDDs', migrate_applications: true }], (j) => progress.push(String(j.progress.description)));
+    expect(config).toMatchObject({ pool: 'HDDs', dataset: 'HDDs/ix-apps' });
+    expect(progress).toEqual(expect.arrayContaining(["Replicating datasets from 'SSDs' to 'HDDs' pool", 'Migration completed successfully']));
+    expect(await client.call('docker.status')).toEqual({ status: 'RUNNING', description: '' });
+    expect(await client.call<Any>('app.get_instance', ['jellyfin'])).toMatchObject({ state: 'RUNNING' });
+    const ids = (await client.call<Any[]>('pool.dataset.query', [[['id', '^', 'HDDs/ix-apps']]])).map((d) => d.id);
+    expect(ids).toEqual(expect.arrayContaining(['HDDs/ix-apps', 'HDDs/ix-apps/docker', 'HDDs/ix-apps/app_mounts']));
+    expect(await client.call<Any[]>('pool.dataset.query', [[['id', '=', 'SSDs/ix-apps']]])).toHaveLength(1);
+
+    // Moving back would overwrite the copy left on SSDs.
+    const back = await failure(client.job('docker.update', [{ pool: 'SSDs', migrate_applications: true }]));
+    expect(back.validationErrors[attr]).toBe("Migration of 'HDDs/ix-apps' to 'SSDs/ix-apps' not possible as SSDs/ix-apps already exists.");
+
+    // A plain switch stops the apps and leaves them behind.
+    await client.job('docker.update', [{ pool: 'SSDs' }]);
+    expect(await client.call('app.query')).toEqual([]);
+    await client.job('docker.update', [{ pool: 'HDDs' }]);
+    expect(await client.call<Any>('app.get_instance', ['jellyfin'])).toMatchObject({ state: 'STOPPED' });
+  });
+
+  it('can only migrate apps from a pool that was configured before', async () => {
+    const { client } = await setup();
+    await createPool(client, 'SSDs', 'MIRROR', ['nvme0n1', 'nvme1n1']);
+    const err = await failure(client.job('docker.update', [{ pool: 'SSDs', migrate_applications: true }]));
+    expect(err.validationErrors['docker_update.migrate_applications']).toBe('A pool must have been configured previously for ix-apps dataset migration.');
+  });
+
   it('runs a custom compose app', async () => {
     const { client } = await setup({ scenario: 'configured' });
     const compose = 'services:\n  whoami:\n    image: traefik/whoami:latest\n    ports:\n      - "8080:80"\n    restart: unless-stopped\n';

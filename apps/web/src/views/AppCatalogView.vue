@@ -7,6 +7,7 @@ import { api } from '../lib/api.ts';
 import { onServerChange } from '../lib/events.ts';
 import PageState from '../components/PageState.vue';
 import AppDetailDialog from '../components/apps/AppDetailDialog.vue';
+import AppsPoolDialog from '../components/apps/AppsPoolDialog.vue';
 import CatalogCard from '../components/apps/CatalogCard.vue';
 import { categoryLabel, errorText } from '../components/apps/apps.ts';
 
@@ -20,6 +21,7 @@ const error = ref<string | null>(null);
 const one = (v: unknown) => (typeof v === 'string' ? v : Array.isArray(v) && typeof v[0] === 'string' ? v[0] : '');
 const search = ref(one(route.query.q));
 const category = ref(one(route.query.category));
+const choosingPool = ref(false);
 const selected = ref<{ id: string; train?: string } | null>(route.query.app ? { id: one(route.query.app), train: one(route.query.train) || undefined } : null);
 
 async function load(silent = false) {
@@ -93,8 +95,11 @@ function clearFilters() {
   <PageState :loading="loading && !data" :error="error" @retry="load()">
     <div v-if="data && !data.appsPool" class="callout warn stack" style="--gap: 6px">
       <strong>Apps need a storage pool first</strong>
-      <p>Apps keep their settings and data on a pool. Create one on the Storage page, then come back here to install apps.</p>
-      <div><RouterLink to="/storage" class="btn small">Go to Storage</RouterLink></div>
+      <p>Apps keep their settings and data on a pool. Choose one of your pools, or create a new one on the Storage page.</p>
+      <div class="row wrap" style="--gap: 8px">
+        <button class="btn small primary" @click="choosingPool = true">Choose a pool</button>
+        <RouterLink to="/storage" class="btn small">Go to Storage</RouterLink>
+      </div>
     </div>
 
     <div v-else class="stack" style="--gap: 18px">
@@ -167,6 +172,7 @@ function clearFilters() {
     </div>
   </PageState>
 
+  <AppsPoolDialog v-if="choosingPool" @close="choosingPool = false" @done="(choosingPool = false), load()" />
   <AppDetailDialog v-if="selected" :key="`${selected.train}/${selected.id}`" :app-id="selected.id" :train="selected.train" @close="selected = null" />
 </template>
 

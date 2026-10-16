@@ -11,6 +11,7 @@ const setupSchema = z.object({
   newPools: z.array(
     z.object({ name: z.string().trim(), layout: z.enum(['STRIPE', 'MIRROR', 'RAIDZ1', 'RAIDZ2', 'RAIDZ3']), drives: z.array(z.string()).min(1) }),
   ),
+  appsPool: z.string().nullish(),
   consentErase: z.boolean(),
   consentKeep: z.boolean(),
 });

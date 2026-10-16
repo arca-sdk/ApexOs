@@ -20,6 +20,19 @@ const appsPoolLabel = computed(() => {
   if (!name) return null;
   return wizard.keptPools.value.find((p) => p.name === name)?.displayName ?? name;
 });
+/** "NVMEs (new, SSD)", "Media (keeping)", "tank (importing)". */
+function appsPoolOption(name: string): string {
+  const kept = wizard.keptPools.value.find((p) => p.name === name);
+  if (kept) return `${kept.displayName} (keeping)`;
+  const planned = review.value?.newPools.find((p) => p.name === name);
+  if (!planned) return `${name} (importing)`;
+  const ssd = planned.drives.every((id) => wizard.drives.value.find((d) => d.identifier === id)?.kind !== 'HDD');
+  return `${name} (new${ssd ? ', SSD' : ''})`;
+}
+function chooseAppsPool(name: string) {
+  state.appsPool = name;
+  void wizard.loadReview();
+}
 const users = computed(() => state.info?.serverUsers ?? []);
 const problems = computed(() => [
   ...(review.value?.problems ?? []),
@@ -140,7 +153,14 @@ const problems = computed(() => [
         <AppWindow :size="18" aria-hidden="true" />
         <h3>Apps</h3>
       </div>
-      <p v-if="appsPoolLabel" class="small">Apps will run from <strong>{{ appsPoolLabel }}</strong>.</p>
+      <div v-if="review.appsPoolOptions.length > 1" class="field">
+        <label for="review-apps-pool">Apps run from</label>
+        <select id="review-apps-pool" :value="review.appsPool ?? ''" :disabled="state.reviewLoading" @change="chooseAppsPool(($event.target as HTMLSelectElement).value)">
+          <option v-for="n in review.appsPoolOptions" :key="n" :value="n">{{ appsPoolOption(n) }}</option>
+        </select>
+        <span class="hint">Apps are fastest on SSDs. You can move them to another pool later.</span>
+      </div>
+      <p v-else-if="appsPoolLabel" class="small">Apps will run from <strong>{{ appsPoolLabel }}</strong>.</p>
       <p v-else class="small muted">There’s no pool for apps yet.</p>
     </section>
 

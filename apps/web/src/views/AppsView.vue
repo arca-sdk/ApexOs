@@ -6,6 +6,7 @@ import { api } from '../lib/api.ts';
 import { onServerChange } from '../lib/events.ts';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import PageState from '../components/PageState.vue';
+import AppsPoolDialog from '../components/apps/AppsPoolDialog.vue';
 import EngineBanner from '../components/apps/EngineBanner.vue';
 import InstalledAppCard from '../components/apps/InstalledAppCard.vue';
 import UninstallDialog from '../components/apps/UninstallDialog.vue';
@@ -19,6 +20,7 @@ const actions = useAppActions();
 const uninstalling = ref<InstalledApp | null>(null);
 const updating = ref<InstalledApp | null>(null);
 const confirmAll = ref(false);
+const choosingPool = ref(false);
 
 const apps = computed(() => data.value?.apps ?? []);
 const updatable = computed(() => apps.value.filter((a) => a.upgradeAvailable));
@@ -115,7 +117,7 @@ function startUpdateAll() {
   </div>
 
   <div class="stack" style="--gap: 20px">
-    <EngineBanner v-if="data" :engine="data.engine" />
+    <EngineBanner v-if="data" :engine="data.engine" @choose="choosingPool = true" />
 
     <div v-if="actions.errors['*']" class="callout err row" role="alert" style="--gap: 8px">
       <span class="spacer">{{ actions.errors['*'] }}</span>
@@ -148,6 +150,7 @@ function startUpdateAll() {
     </PageState>
   </div>
 
+  <AppsPoolDialog v-if="choosingPool" @close="choosingPool = false" @done="(choosingPool = false), refresh()" />
   <UninstallDialog v-if="uninstalling" :app="uninstalling" @close="uninstalling = null" @confirm="confirmUninstall" />
 
   <ConfirmDialog

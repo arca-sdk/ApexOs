@@ -17,6 +17,7 @@ import { expandString, expandValue, parseSpec, presentQuestions, resolveAnswers,
 import type { TaskContext } from '../lib/tasks.ts';
 import type { InstalledAppRecord } from '../lib/store.ts';
 import type { TnApp, TnCatalogApp, TnDataset, TnDockerConfig, TnDockerStatus, TnSystemInfo } from '../truenas/types.ts';
+import { assertAppsNotMoving } from './apps-pool.ts';
 import { ensureLocation, listLocations, locationDef } from './locations.ts';
 import { lanIp } from './system.ts';
 
@@ -179,6 +180,7 @@ export async function startInstall(ctx: AppContext, req: InstallRequest) {
   if (appName !== undefined && (!APP_NAME_RE.test(appName) || appName.length > 40)) {
     throw new UserError('App names use lowercase letters, numbers and dashes (max 40).', 400, 'VALIDATION', { appName: 'Invalid name' });
   }
+  assertAppsNotMoving(ctx);
   const curated = ctx.scripts.has(req.catalogApp);
   const entry = await findCatalogApp(ctx, req.catalogApp, req.train);
   const title = entry.title || entry.name;
@@ -354,13 +356,14 @@ async function requireApp(ctx: AppContext, name: string): Promise<TnApp> {
 }
 
 /** Name to show for an installed app: its catalog title, plus the instance name when they differ. */
-function displayName(app: TnApp): string {
+export function displayName(app: TnApp): string {
   const title = app.metadata?.title;
   if (!title) return app.name;
   return title.toLowerCase() === app.name.toLowerCase() ? title : `${title} (${app.name})`;
 }
 
 export async function startStop(ctx: AppContext, name: string, action: 'start' | 'stop') {
+  assertAppsNotMoving(ctx);
   const app = await requireApp(ctx, name);
   return ctx.tasks.start(
     { type: `app-${action}`, title: `${action === 'start' ? 'Starting' : 'Stopping'} ${displayName(app)}`, ref: name },
@@ -401,6 +404,7 @@ async function upgradeOne(ctx: AppContext, name: string, task: TaskContext): Pro
 }
 
 export async function startUpgrade(ctx: AppContext, name: string) {
+  assertAppsNotMoving(ctx);
   const app = await requireApp(ctx, name);
   if (!app.upgrade_available) throw new UserError('This app is already up to date.', 409, 'UP_TO_DATE');
   return ctx.tasks.start({ type: 'app-upgrade', title: `Updating ${displayName(app)}`, ref: displayName(app) }, async (task) => {
@@ -410,6 +414,7 @@ export async function startUpgrade(ctx: AppContext, name: string) {
 }
 
 export async function startUpgradeAll(ctx: AppContext) {
+  assertAppsNotMoving(ctx);
   const apps = await ctx.truenas.client().call<TnApp[]>('app.query', [[['upgrade_available', '=', true]]]);
   if (!apps.length) throw new UserError('All apps are up to date.', 409, 'UP_TO_DATE');
   return ctx.tasks.start({ type: 'app-upgrade-all', title: `Updating ${apps.length} app${apps.length === 1 ? '' : 's'}` }, async (task) => {
@@ -427,6 +432,7 @@ export async function startUpgradeAll(ctx: AppContext) {
 }
 
 export async function startUninstall(ctx: AppContext, name: string, removeData: boolean) {
+  assertAppsNotMoving(ctx);
   const app = await requireApp(ctx, name);
   return ctx.tasks.start(
     { type: 'app-uninstall', title: `Uninstalling ${displayName(app)}`, ref: displayName(app), steps: removeData ? ['Removing the app', 'Removing app data'] : ['Removing the app'] },
